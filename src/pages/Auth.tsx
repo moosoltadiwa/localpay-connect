@@ -49,13 +49,15 @@ const Auth = () => {
       }
       toast({
         title: "Account created!",
-        description: "Welcome to ZimBoost. You can now log in.",
+        description: "Welcome to ZimBoost. Redirecting to dashboard...",
       });
+      setTimeout(() => navigate("/dashboard"), 1000);
     } else {
       toast({
         title: "Login successful!",
         description: "Welcome back to ZimBoost.",
       });
+      setTimeout(() => navigate("/dashboard"), 500);
     }
   };
 
