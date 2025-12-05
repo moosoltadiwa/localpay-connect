@@ -5,15 +5,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Eye, EyeOff, Mail, Lock, User, Zap, ArrowLeft } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, Zap, ArrowLeft, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 
 const Auth = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, loading: authLoading, signIn, signUp } = useAuth();
   const [isSignup, setIsSignup] = useState(searchParams.get("mode") === "signup");
   const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -27,39 +30,95 @@ const Auth = () => {
     setIsSignup(searchParams.get("mode") === "signup");
   }, [searchParams]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Redirect if already logged in
+  useEffect(() => {
+    if (!authLoading && user) {
+      navigate("/dashboard");
+    }
+  }, [user, authLoading, navigate]);
 
-    if (isSignup) {
-      if (formData.password !== formData.confirmPassword) {
-        toast({
-          title: "Passwords don't match",
-          description: "Please make sure your passwords match.",
-          variant: "destructive",
-        });
-        return;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    try {
+      if (isSignup) {
+        if (formData.password !== formData.confirmPassword) {
+          toast({
+            title: "Passwords don't match",
+            description: "Please make sure your passwords match.",
+            variant: "destructive",
+          });
+          setIsSubmitting(false);
+          return;
+        }
+        if (!formData.agreeTerms) {
+          toast({
+            title: "Terms required",
+            description: "Please agree to the terms and conditions.",
+            variant: "destructive",
+          });
+          setIsSubmitting(false);
+          return;
+        }
+        if (formData.password.length < 6) {
+          toast({
+            title: "Password too short",
+            description: "Password must be at least 6 characters.",
+            variant: "destructive",
+          });
+          setIsSubmitting(false);
+          return;
+        }
+
+        const { error } = await signUp(formData.email, formData.password, formData.name);
+        
+        if (error) {
+          toast({
+            title: "Sign up failed",
+            description: error.message || "An error occurred during sign up.",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Account created!",
+            description: "Welcome to ZimBoost. Redirecting to dashboard...",
+          });
+        }
+      } else {
+        const { error } = await signIn(formData.email, formData.password);
+        
+        if (error) {
+          toast({
+            title: "Login failed",
+            description: error.message || "Invalid email or password.",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Login successful!",
+            description: "Welcome back to ZimBoost.",
+          });
+        }
       }
-      if (!formData.agreeTerms) {
-        toast({
-          title: "Terms required",
-          description: "Please agree to the terms and conditions.",
-          variant: "destructive",
-        });
-        return;
-      }
+    } catch (err) {
       toast({
-        title: "Account created!",
-        description: "Welcome to ZimBoost. Redirecting to dashboard...",
+        title: "Error",
+        description: "An unexpected error occurred. Please try again.",
+        variant: "destructive",
       });
-      setTimeout(() => navigate("/dashboard"), 1000);
-    } else {
-      toast({
-        title: "Login successful!",
-        description: "Welcome back to ZimBoost.",
-      });
-      setTimeout(() => navigate("/dashboard"), 500);
+    } finally {
+      setIsSubmitting(false);
     }
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen gradient-hero flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary-foreground" />
+      </div>
+    );
+  }
 
   return (
     <>
@@ -128,6 +187,7 @@ const Auth = () => {
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       className="pl-10 h-12 bg-background border-border"
                       required
+                      disabled={isSubmitting}
                     />
                   </div>
                 </div>
@@ -147,6 +207,7 @@ const Auth = () => {
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     className="pl-10 h-12 bg-background border-border"
                     required
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
@@ -165,6 +226,7 @@ const Auth = () => {
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     className="pl-10 pr-10 h-12 bg-background border-border"
                     required
+                    disabled={isSubmitting}
                   />
                   <button
                     type="button"
@@ -191,6 +253,7 @@ const Auth = () => {
                       onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                       className="pl-10 h-12 bg-background border-border"
                       required
+                      disabled={isSubmitting}
                     />
                   </div>
                 </div>
@@ -204,6 +267,7 @@ const Auth = () => {
                     onCheckedChange={(checked) =>
                       setFormData({ ...formData, agreeTerms: checked as boolean })
                     }
+                    disabled={isSubmitting}
                   />
                   <Label htmlFor="terms" className="text-sm text-muted-foreground cursor-pointer leading-tight">
                     I agree to the{" "}
@@ -225,6 +289,7 @@ const Auth = () => {
                       onCheckedChange={(checked) =>
                         setFormData({ ...formData, rememberMe: checked as boolean })
                       }
+                      disabled={isSubmitting}
                     />
                     <Label htmlFor="remember" className="text-sm text-muted-foreground cursor-pointer">
                       Remember me
@@ -239,8 +304,15 @@ const Auth = () => {
                 </div>
               )}
 
-              <Button type="submit" variant="hero" className="w-full h-12">
-                {isSignup ? "Create Account" : "Sign In"}
+              <Button type="submit" variant="hero" className="w-full h-12" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    {isSignup ? "Creating Account..." : "Signing In..."}
+                  </>
+                ) : (
+                  isSignup ? "Create Account" : "Sign In"
+                )}
               </Button>
             </form>
 
