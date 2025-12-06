@@ -11,8 +11,10 @@ import {
   LogOut,
   User,
   Plus,
+  Shield,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdmin } from "@/hooks/useAdmin";
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -32,6 +34,7 @@ const DashboardLayout = ({ children, title }: DashboardLayoutProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { profile, signOut } = useAuth();
+  const { isAdmin } = useAdmin();
 
   const handleSignOut = async () => {
     await signOut();
@@ -104,8 +107,17 @@ const DashboardLayout = ({ children, title }: DashboardLayoutProps) => {
             })}
           </nav>
 
-          {/* Logout */}
-          <div className="p-4 border-t border-border">
+          {/* Footer Links */}
+          <div className="p-4 border-t border-border space-y-1">
+            {isAdmin && (
+              <Link
+                to="/admin"
+                className="flex items-center gap-3 px-4 py-3 rounded-lg text-destructive bg-destructive/5 hover:bg-destructive/10 transition-colors w-full font-medium"
+              >
+                <Shield className="w-5 h-5" />
+                Admin Panel
+              </Link>
+            )}
             <button
               onClick={handleSignOut}
               className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors w-full"
