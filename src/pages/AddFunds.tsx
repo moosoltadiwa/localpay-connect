@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Helmet } from "react-helmet-async";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +11,7 @@ import {
   CreditCard,
   Wallet,
   Loader2,
+  ExternalLink,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -53,11 +54,18 @@ const presetAmounts = [5, 10, 20, 50, 100, 200];
 const AddFunds = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, profile, loading: authLoading, refreshProfile } = useAuth();
   const [selectedMethod, setSelectedMethod] = useState("");
   const [amount, setAmount] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pendingTransaction, setPendingTransaction] = useState<{
+    id: string;
+    instructions?: string;
+    redirectUrl?: string;
+  } | null>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Redirect if not logged in
   useEffect(() => {
@@ -65,6 +73,69 @@ const AddFunds = () => {
       navigate("/auth");
     }
   }, [user, authLoading, navigate]);
+
+  // Check for return from PayNow
+  useEffect(() => {
+    const status = searchParams.get("status");
+    if (status === "success") {
+      toast({
+        title: "Payment Processing",
+        description: "Your payment is being processed. Balance will update shortly.",
+      });
+      refreshProfile();
+    }
+  }, [searchParams, toast, refreshProfile]);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, []);
+
+  const pollTransactionStatus = async (transactionId: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke("paynow-poll", {
+        body: { transactionId },
+      });
+
+      if (error) {
+        console.error("Poll error:", error);
+        return;
+      }
+
+      if (data.completed) {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+        setPendingTransaction(null);
+        await refreshProfile();
+        toast({
+          title: "Payment Successful!",
+          description: "Your wallet has been topped up.",
+        });
+        setAmount("");
+        setPhoneNumber("");
+        setSelectedMethod("");
+      } else if (data.status === "failed") {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+        setPendingTransaction(null);
+        toast({
+          title: "Payment Failed",
+          description: "Your payment was not successful. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      console.error("Poll error:", err);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,43 +168,69 @@ const AddFunds = () => {
       return;
     }
 
+    // Bank transfer - show instructions only
+    if (selectedMethod === "bank") {
+      toast({
+        title: "Bank Transfer Instructions",
+        description: "Please make a bank transfer using the details shown and include your email as reference.",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      // Create transaction record
-      const { error: txError } = await supabase.from("wallet_transactions").insert({
-        user_id: user!.id,
-        type: "deposit",
-        amount: numAmount,
-        payment_method: selectedMethod,
-        reference: phoneNumber || "Bank Transfer",
-        status: "pending",
+      // Call the PayNow initiate edge function
+      const { data, error } = await supabase.functions.invoke("paynow-initiate", {
+        body: {
+          amount: numAmount,
+          paymentMethod: selectedMethod,
+          phoneNumber: phoneNumber || undefined,
+          email: user!.email,
+          userId: user!.id,
+        },
       });
 
-      if (txError) throw txError;
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error || "Payment failed");
 
-      // For demo purposes, we'll simulate instant approval
-      // In production, this would be handled by a payment webhook
-      const newBalance = (profile?.balance || 0) + numAmount;
-      const { error: balanceError } = await supabase
-        .from("profiles")
-        .update({ balance: newBalance })
-        .eq("id", user!.id);
+      // Handle mobile money (EcoCash/OneMoney) - show instructions
+      if (selectedMethod === "ecocash" || selectedMethod === "onemoney") {
+        setPendingTransaction({
+          id: data.transactionId,
+          instructions: data.instructions || `A payment prompt has been sent to ${phoneNumber}. Please enter your PIN on your phone to complete the payment.`,
+        });
 
-      if (balanceError) throw balanceError;
+        // Start polling for status
+        pollIntervalRef.current = setInterval(() => {
+          pollTransactionStatus(data.transactionId);
+        }, 5000);
 
-      await refreshProfile();
+        toast({
+          title: "Payment Initiated",
+          description: "Check your phone for the payment prompt.",
+        });
+      } else {
+        // Web payment - redirect to PayNow
+        if (data.redirectUrl) {
+          setPendingTransaction({
+            id: data.transactionId,
+            redirectUrl: data.redirectUrl,
+          });
 
-      toast({
-        title: "Payment initiated!",
-        description: `$${numAmount.toFixed(2)} has been added to your wallet via ${paymentMethods.find(m => m.id === selectedMethod)?.name}.`,
-      });
+          // Start polling in case they complete payment
+          pollIntervalRef.current = setInterval(() => {
+            pollTransactionStatus(data.transactionId);
+          }, 5000);
 
-      // Reset form
-      setAmount("");
-      setPhoneNumber("");
-      setSelectedMethod("");
+          toast({
+            title: "Redirecting to PayNow",
+            description: "You will be redirected to complete your payment.",
+          });
+        }
+      }
     } catch (error: any) {
+      console.error("Payment error:", error);
       toast({
         title: "Payment failed",
         description: error.message || "Failed to process payment. Please try again.",
@@ -142,6 +239,14 @@ const AddFunds = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const cancelPendingPayment = () => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+    setPendingTransaction(null);
   };
 
   const selectedPaymentMethod = paymentMethods.find(m => m.id === selectedMethod);
@@ -171,6 +276,64 @@ const AddFunds = () => {
               <p className="text-sm opacity-80 mt-2">Top up your wallet to place orders</p>
             </div>
 
+            {/* Pending Transaction UI */}
+            {pendingTransaction && (
+              <div className="bg-card rounded-2xl border-2 border-primary p-6 space-y-4 animate-in fade-in">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
+                    <Loader2 className="w-5 h-5 text-primary animate-spin" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-foreground">Payment In Progress</h3>
+                    <p className="text-sm text-muted-foreground">Waiting for payment confirmation...</p>
+                  </div>
+                </div>
+
+                {pendingTransaction.instructions && (
+                  <div className="p-4 rounded-lg bg-secondary/50 border border-border">
+                    <p className="text-sm text-foreground">{pendingTransaction.instructions}</p>
+                  </div>
+                )}
+
+                {pendingTransaction.redirectUrl && (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Click the button below to complete your payment on PayNow:
+                    </p>
+                    <a
+                      href={pendingTransaction.redirectUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      Complete Payment on PayNow
+                    </a>
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={cancelPendingPayment}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => pollTransactionStatus(pendingTransaction.id)}
+                    className="flex-1"
+                  >
+                    Check Status
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {!pendingTransaction && (
             <form onSubmit={handleSubmit} className="bg-card rounded-2xl border border-border p-6 space-y-6">
               {/* Amount Selection */}
               <div className="space-y-3">
@@ -309,6 +472,7 @@ const AddFunds = () => {
                 🔒 Your payment is secured with 256-bit SSL encryption
               </p>
             </form>
+            )}
           </div>
         </div>
       </DashboardLayout>

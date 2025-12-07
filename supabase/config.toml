@@ -1,1 +1,10 @@
 project_id = "jfriwhgerqlbomiqlafk"
+
+[functions.paynow-initiate]
+verify_jwt = true
+
+[functions.paynow-webhook]
+verify_jwt = false
+
+[functions.paynow-poll]
+verify_jwt = true
