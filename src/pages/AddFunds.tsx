@@ -168,12 +168,39 @@ const AddFunds = () => {
       return;
     }
 
-    // Bank transfer - show instructions only
+    // Bank transfer - create manual pending transaction
     if (selectedMethod === "bank") {
-      toast({
-        title: "Bank Transfer Instructions",
-        description: "Please make a bank transfer using the details shown and include your email as reference.",
-      });
+      setIsSubmitting(true);
+      try {
+        // Create pending transaction for admin to approve
+        const reference = `BANK-${Date.now()}-${user!.email}`;
+        const { error } = await supabase.from("wallet_transactions").insert({
+          user_id: user!.id,
+          type: "deposit",
+          amount: numAmount,
+          payment_method: "bank",
+          reference: reference,
+          status: "pending",
+        });
+
+        if (error) throw error;
+
+        toast({
+          title: "Bank Transfer Request Submitted",
+          description: "Please make your bank transfer. Your funds will be credited once the admin confirms receipt.",
+        });
+
+        setAmount("");
+        setSelectedMethod("");
+      } catch (error: any) {
+        toast({
+          title: "Failed to submit request",
+          description: error.message,
+          variant: "destructive",
+        });
+      } finally {
+        setIsSubmitting(false);
+      }
       return;
     }
 
