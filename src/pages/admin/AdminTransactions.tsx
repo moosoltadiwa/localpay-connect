@@ -15,7 +15,9 @@ import { toast } from "sonner";
 import { CreditCard, Search, RefreshCw, ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 
-type Transaction = Database["public"]["Tables"]["wallet_transactions"]["Row"];
+type Transaction = Database["public"]["Tables"]["wallet_transactions"]["Row"] & {
+  profiles?: { email: string | null; full_name: string | null } | null;
+};
 
 const AdminTransactions = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -37,7 +39,10 @@ const AdminTransactions = () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("wallet_transactions")
-      .select("*")
+      .select(`
+        *,
+        profiles:user_id (email, full_name)
+      `)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -71,16 +76,52 @@ const AdminTransactions = () => {
   };
 
   const updateTransactionStatus = async (transactionId: string, newStatus: string) => {
-    const { error } = await supabase
-      .from("wallet_transactions")
-      .update({ status: newStatus })
-      .eq("id", transactionId);
+    const transaction = transactions.find(t => t.id === transactionId);
+    if (!transaction) {
+      toast.error("Transaction not found");
+      return;
+    }
 
-    if (error) {
-      toast.error("Failed to update transaction");
-    } else {
-      toast.success("Transaction updated");
+    try {
+      // Update transaction status
+      const { error: updateError } = await supabase
+        .from("wallet_transactions")
+        .update({ status: newStatus })
+        .eq("id", transactionId);
+
+      if (updateError) throw updateError;
+
+      // If approving a deposit, update user's balance
+      if (newStatus === "completed" && transaction.type === "deposit") {
+        // Get current user balance
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("balance")
+          .eq("id", transaction.user_id)
+          .single();
+
+        if (profileError) throw profileError;
+
+        const newBalance = (profile.balance || 0) + Number(transaction.amount);
+
+        const { error: balanceError } = await supabase
+          .from("profiles")
+          .update({ balance: newBalance })
+          .eq("id", transaction.user_id);
+
+        if (balanceError) throw balanceError;
+
+        toast.success(`Deposit approved! User balance updated to $${newBalance.toFixed(2)}`);
+      } else if (newStatus === "failed") {
+        toast.success("Transaction rejected");
+      } else {
+        toast.success("Transaction updated");
+      }
+
       fetchTransactions();
+    } catch (error: any) {
+      console.error("Update error:", error);
+      toast.error(error.message || "Failed to update transaction");
     }
   };
 
@@ -230,6 +271,9 @@ const AdminTransactions = () => {
                   <thead>
                     <tr className="border-b border-border">
                       <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
+                        User
+                      </th>
+                      <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
                         Type
                       </th>
                       <th className="text-left py-3 px-2 text-sm font-medium text-muted-foreground">
@@ -255,6 +299,16 @@ const AdminTransactions = () => {
                   <tbody>
                     {filteredTransactions.map((transaction) => (
                       <tr key={transaction.id} className="border-b border-border/50">
+                        <td className="py-3 px-2">
+                          <div className="text-sm">
+                            <p className="font-medium text-foreground truncate max-w-[150px]">
+                              {transaction.profiles?.full_name || "Unknown"}
+                            </p>
+                            <p className="text-xs text-muted-foreground truncate max-w-[150px]">
+                              {transaction.profiles?.email || "-"}
+                            </p>
+                          </div>
+                        </td>
                         <td className="py-3 px-2">
                           <div
                             className={`flex items-center gap-2 ${getTypeColor(
