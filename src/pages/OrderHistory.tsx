@@ -34,8 +34,8 @@ interface Order {
   quantity: number;
   charge: number;
   status: OrderStatus;
-  start_count: number;
-  remains: number;
+  start_count: number | null;
+  remains: number | null;
   created_at: string;
 }
 
@@ -84,6 +84,40 @@ const OrderHistory = () => {
     }
   }, [user]);
 
+  // Real-time order updates
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel("order-updates")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "orders",
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log("Order update received:", payload);
+          if (payload.eventType === "UPDATE") {
+            setOrders((prev) =>
+              prev.map((order) =>
+                order.id === payload.new.id ? (payload.new as Order) : order
+              )
+            );
+          } else if (payload.eventType === "INSERT") {
+            setOrders((prev) => [payload.new as Order, ...prev]);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
   const filteredOrders = orders.filter((order) => {
     const matchesSearch =
       order.order_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -113,7 +147,7 @@ const OrderHistory = () => {
   return (
     <>
       <Helmet>
-        <title>Order History - ZimBoost SMM Panel</title>
+        <title>Order History - scrVll SMM Panel</title>
         <meta name="description" content="View your order history and track the status of your social media growth orders." />
       </Helmet>
 
@@ -169,7 +203,9 @@ const OrderHistory = () => {
                 filteredOrders.map((order) => {
                   const status = statusConfig[order.status];
                   const StatusIcon = status.icon;
-                  const progress = ((order.quantity - order.remains) / order.quantity) * 100;
+                  const progress = order.remains !== null 
+                    ? ((order.quantity - (order.remains || 0)) / order.quantity) * 100 
+                    : 0;
 
                   return (
                     <div
@@ -204,16 +240,18 @@ const OrderHistory = () => {
                             <span className="truncate">{order.link}</span>
                           </a>
 
-                          {/* Progress Bar for Processing Orders */}
-                          {order.status === "processing" && (
+                          {/* Progress Bar for Processing/Pending Orders */}
+                          {(order.status === "processing" || order.status === "pending") && (
                             <div className="space-y-1">
                               <div className="flex justify-between text-xs text-muted-foreground">
-                                <span>Progress</span>
+                                <span>{order.status === "pending" ? "Waiting to start" : "Progress"}</span>
                                 <span>{Math.round(progress)}%</span>
                               </div>
                               <div className="h-2 bg-secondary rounded-full overflow-hidden">
                                 <div
-                                  className="h-full bg-primary rounded-full transition-all duration-500"
+                                  className={`h-full rounded-full transition-all duration-500 ${
+                                    order.status === "pending" ? "bg-yellow-500" : "bg-primary"
+                                  }`}
                                   style={{ width: `${progress}%` }}
                                 />
                               </div>
@@ -229,7 +267,7 @@ const OrderHistory = () => {
                           </div>
                           <div>
                             <p className="text-xs text-muted-foreground">Remains</p>
-                            <p className="font-semibold text-foreground">{order.remains.toLocaleString()}</p>
+                            <p className="font-semibold text-foreground">{(order.remains || 0).toLocaleString()}</p>
                           </div>
                           <div>
                             <p className="text-xs text-muted-foreground">Charge</p>
