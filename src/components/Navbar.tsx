@@ -16,7 +16,7 @@ const Navbar = () => {
               <Zap className="w-5 h-5 text-primary-foreground" />
             </div>
             <span className="font-display font-bold text-xl text-foreground">
-              ZimBoost
+              scrVll
             </span>
           </Link>
 
