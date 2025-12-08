@@ -10,12 +10,15 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import AddFunds from "./pages/AddFunds";
 import OrderHistory from "./pages/OrderHistory";
+import Support from "./pages/Support";
+import Services from "./pages/Services";
 import NotFound from "./pages/NotFound";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminOrders from "./pages/admin/AdminOrders";
 import AdminServices from "./pages/admin/AdminServices";
 import AdminCustomers from "./pages/admin/AdminCustomers";
 import AdminTransactions from "./pages/admin/AdminTransactions";
+import WhatsAppButton from "./components/WhatsAppButton";
 
 const queryClient = new QueryClient();
 
@@ -33,6 +36,8 @@ const App = () => (
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/dashboard/add-funds" element={<AddFunds />} />
               <Route path="/dashboard/orders" element={<OrderHistory />} />
+              <Route path="/dashboard/support" element={<Support />} />
+              <Route path="/dashboard/services" element={<Services />} />
               {/* Admin Routes */}
               <Route path="/admin" element={<AdminDashboard />} />
               <Route path="/admin/orders" element={<AdminOrders />} />
@@ -42,6 +47,7 @@ const App = () => (
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
+            <WhatsAppButton />
           </BrowserRouter>
         </AuthProvider>
       </TooltipProvider>

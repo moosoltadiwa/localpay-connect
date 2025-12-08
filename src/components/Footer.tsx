@@ -12,7 +12,7 @@ const Footer = () => {
               <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center">
                 <Zap className="w-5 h-5 text-primary-foreground" />
               </div>
-              <span className="font-display font-bold text-xl">ZimBoost</span>
+              <span className="font-display font-bold text-xl">scrVll</span>
             </Link>
             <p className="text-background/70">
               Zimbabwe's leading SMM panel. Boost your social media presence with fast delivery and local payment options.
@@ -107,7 +107,7 @@ const Footer = () => {
         {/* Bottom Bar */}
         <div className="mt-12 pt-8 border-t border-background/10 flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-background/60 text-sm">
-            © {new Date().getFullYear()} ZimBoost. All rights reserved.
+            © {new Date().getFullYear()} scrVll. All rights reserved.
           </p>
           <div className="flex gap-6 text-sm">
             <Link to="/terms" className="text-background/60 hover:text-background transition-colors">

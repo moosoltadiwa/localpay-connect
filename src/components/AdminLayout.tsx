@@ -10,23 +10,17 @@ import {
   CreditCard,
   LogOut,
   BarChart3,
-  Settings,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
+import { Badge } from "@/components/ui/badge";
 
 interface AdminLayoutProps {
   children: ReactNode;
   title: string;
 }
-
-const navItems = [
-  { path: "/admin", icon: BarChart3, label: "Dashboard" },
-  { path: "/admin/orders", icon: ShoppingCart, label: "All Orders" },
-  { path: "/admin/services", icon: Package, label: "Services" },
-  { path: "/admin/customers", icon: Users, label: "Customers" },
-  { path: "/admin/transactions", icon: CreditCard, label: "Transactions" },
-];
 
 const AdminLayout = ({ children, title }: AdminLayoutProps) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -34,6 +28,30 @@ const AdminLayout = ({ children, title }: AdminLayoutProps) => {
   const navigate = useNavigate();
   const { profile, signOut, loading: authLoading } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdmin();
+
+  // Fetch pending deposits count
+  const { data: pendingDepositsCount } = useQuery({
+    queryKey: ["pending-deposits-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("wallet_transactions")
+        .select("*", { count: "exact", head: true })
+        .eq("type", "deposit")
+        .eq("status", "pending");
+      
+      if (error) throw error;
+      return count || 0;
+    },
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+
+  const navItems = [
+    { path: "/admin", icon: BarChart3, label: "Dashboard", badge: 0 },
+    { path: "/admin/orders", icon: ShoppingCart, label: "All Orders", badge: 0 },
+    { path: "/admin/services", icon: Package, label: "Services", badge: 0 },
+    { path: "/admin/customers", icon: Users, label: "Customers", badge: 0 },
+    { path: "/admin/transactions", icon: CreditCard, label: "Transactions", badge: pendingDepositsCount || 0 },
+  ];
 
   useEffect(() => {
     if (!authLoading && !adminLoading && !isAdmin) {
@@ -82,8 +100,8 @@ const AdminLayout = ({ children, title }: AdminLayoutProps) => {
                 <Shield className="w-5 h-5 text-destructive-foreground" />
               </div>
               <div>
-                <span className="font-display font-bold text-xl text-foreground">Admin</span>
-                <p className="text-xs text-muted-foreground">Panel</p>
+                <span className="font-display font-bold text-xl text-foreground">scrVll</span>
+                <p className="text-xs text-muted-foreground">Admin Panel</p>
               </div>
             </Link>
           </div>
@@ -112,14 +130,21 @@ const AdminLayout = ({ children, title }: AdminLayoutProps) => {
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                  className={`flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${
                     isActive
                       ? "bg-destructive/10 text-destructive font-medium"
                       : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                   }`}
                 >
-                  <Icon className="w-5 h-5" />
-                  {item.label}
+                  <div className="flex items-center gap-3">
+                    <Icon className="w-5 h-5" />
+                    {item.label}
+                  </div>
+                  {item.badge > 0 && (
+                    <Badge variant="destructive" className="text-xs">
+                      {item.badge}
+                    </Badge>
+                  )}
                 </Link>
               );
             })}
