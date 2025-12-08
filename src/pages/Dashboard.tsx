@@ -11,72 +11,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Loader2 } from "lucide-react";
+import { Search, Loader2, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 import DashboardLayout from "@/components/DashboardLayout";
 
-// Service categories and services data
-const categories = [
-  {
-    id: "instagram-followers",
-    name: "Instagram Followers | New Servers",
-    services: [
-      { id: "30446", name: "Instagram Followers | 7 Days Refill", price: 0.50, min: 10, max: 1000000 },
-      { id: "30447", name: "Instagram Followers | 30 Days Refill", price: 0.70, min: 50, max: 500000 },
-      { id: "30448", name: "Instagram Followers | Instant Start", price: 0.90, min: 100, max: 100000 },
-    ],
-  },
-  {
-    id: "instagram-likes",
-    name: "Instagram Likes | Premium",
-    services: [
-      { id: "30450", name: "Instagram Likes | Fast Delivery", price: 0.30, min: 10, max: 50000 },
-      { id: "30451", name: "Instagram Likes | Premium Quality", price: 0.50, min: 50, max: 100000 },
-    ],
-  },
-  {
-    id: "tiktok-followers",
-    name: "TikTok Followers | Real",
-    services: [
-      { id: "30460", name: "TikTok Followers | Fast Start", price: 0.40, min: 100, max: 500000 },
-      { id: "30461", name: "TikTok Followers | Premium", price: 0.60, min: 50, max: 1000000 },
-    ],
-  },
-  {
-    id: "tiktok-views",
-    name: "TikTok Views | High Quality",
-    services: [
-      { id: "30465", name: "TikTok Views | Instant", price: 0.10, min: 100, max: 10000000 },
-      { id: "30466", name: "TikTok Views | Premium", price: 0.20, min: 500, max: 5000000 },
-    ],
-  },
-  {
-    id: "youtube-subscribers",
-    name: "YouTube Subscribers",
-    services: [
-      { id: "30470", name: "YouTube Subscribers | Lifetime", price: 2.00, min: 50, max: 100000 },
-      { id: "30471", name: "YouTube Subscribers | Fast", price: 2.50, min: 100, max: 50000 },
-    ],
-  },
-  {
-    id: "youtube-views",
-    name: "YouTube Views | Real",
-    services: [
-      { id: "30475", name: "YouTube Views | High Retention", price: 1.00, min: 100, max: 1000000 },
-      { id: "30476", name: "YouTube Views | Fast Delivery", price: 0.80, min: 500, max: 5000000 },
-    ],
-  },
-  {
-    id: "facebook-likes",
-    name: "Facebook Page Likes",
-    services: [
-      { id: "30480", name: "Facebook Page Likes | Premium", price: 0.60, min: 100, max: 500000 },
-      { id: "30481", name: "Facebook Page Likes | Fast", price: 0.80, min: 50, max: 100000 },
-    ],
-  },
-];
+interface Service {
+  id: string;
+  name: string;
+  category: string;
+  description: string | null;
+  price_per_1000: number;
+  min_quantity: number;
+  max_quantity: number;
+  is_active: boolean;
+}
 
 const Dashboard = () => {
   const { toast } = useToast();
@@ -84,14 +35,40 @@ const Dashboard = () => {
   const { user, profile, loading: authLoading, refreshProfile } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
-  const [selectedService, setSelectedService] = useState("");
+  const [selectedServiceId, setSelectedServiceId] = useState("");
   const [link, setLink] = useState("");
   const [quantity, setQuantity] = useState("");
   const [charge, setCharge] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const currentCategory = categories.find((c) => c.id === selectedCategory);
-  const currentService = currentCategory?.services.find((s) => s.id === selectedService);
+  // Fetch services from database
+  const { data: services, isLoading: servicesLoading } = useQuery({
+    queryKey: ["active-services"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("services")
+        .select("*")
+        .eq("is_active", true)
+        .order("category", { ascending: true })
+        .order("name", { ascending: true });
+
+      if (error) throw error;
+      return data as Service[];
+    },
+  });
+
+  // Get unique categories
+  const categories = services
+    ? [...new Set(services.map((s) => s.category))]
+    : [];
+
+  // Get services for selected category
+  const categoryServices = services?.filter(
+    (s) => s.category === selectedCategory
+  );
+
+  // Get selected service
+  const selectedService = services?.find((s) => s.id === selectedServiceId);
 
   // Redirect if not logged in
   useEffect(() => {
@@ -102,29 +79,49 @@ const Dashboard = () => {
 
   // Calculate charge when quantity or service changes
   useEffect(() => {
-    if (currentService && quantity) {
+    if (selectedService && quantity) {
       const qty = parseInt(quantity);
-      if (!isNaN(qty) && qty >= currentService.min && qty <= currentService.max) {
-        setCharge((qty / 1000) * currentService.price);
+      if (!isNaN(qty) && qty >= selectedService.min_quantity && qty <= selectedService.max_quantity) {
+        setCharge((qty / 1000) * selectedService.price_per_1000);
       } else {
         setCharge(0);
       }
     } else {
       setCharge(0);
     }
-  }, [quantity, currentService]);
+  }, [quantity, selectedService]);
 
   // Reset service when category changes
   useEffect(() => {
-    setSelectedService("");
+    setSelectedServiceId("");
     setQuantity("");
     setCharge(0);
   }, [selectedCategory]);
 
+  // Filter categories by search
+  const filteredCategories = categories.filter((cat) => {
+    const catServices = services?.filter((s) => s.category === cat) || [];
+    return (
+      cat.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      catServices.some((s) =>
+        s.name.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    );
+  });
+
+  const validateLink = (url: string): boolean => {
+    try {
+      new URL(url);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!selectedCategory || !selectedService || !link || !quantity) {
+    if (!selectedCategory || !selectedServiceId || !link || !quantity) {
       toast({
         title: "Missing fields",
         description: "Please fill in all required fields.",
@@ -133,12 +130,21 @@ const Dashboard = () => {
       return;
     }
 
-    if (currentService) {
+    if (!validateLink(link)) {
+      toast({
+        title: "Invalid link",
+        description: "Please enter a valid URL.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (selectedService) {
       const qty = parseInt(quantity);
-      if (qty < currentService.min || qty > currentService.max) {
+      if (qty < selectedService.min_quantity || qty > selectedService.max_quantity) {
         toast({
           title: "Invalid quantity",
-          description: `Quantity must be between ${currentService.min} and ${currentService.max.toLocaleString()}.`,
+          description: `Quantity must be between ${selectedService.min_quantity.toLocaleString()} and ${selectedService.max_quantity.toLocaleString()}.`,
           variant: "destructive",
         });
         return;
@@ -151,6 +157,7 @@ const Dashboard = () => {
           description: "Please add funds to your wallet to place this order.",
           variant: "destructive",
         });
+        navigate("/dashboard/add-funds");
         return;
       }
     }
@@ -162,12 +169,13 @@ const Dashboard = () => {
       const { error: orderError } = await supabase.from("orders").insert({
         user_id: user!.id,
         order_number: "TEMP", // Will be overwritten by trigger
-        service_id: selectedService,
-        service_name: currentService!.name,
-        link,
+        service_id: selectedServiceId,
+        service_name: selectedService!.name,
+        link: link.trim(),
         quantity: parseInt(quantity),
         charge,
         remains: parseInt(quantity),
+        status: "pending",
       });
 
       if (orderError) throw orderError;
@@ -186,7 +194,7 @@ const Dashboard = () => {
         user_id: user!.id,
         type: "order",
         amount: -charge,
-        reference: `Order for ${currentService!.name}`,
+        reference: `Order: ${selectedService!.name}`,
         status: "completed",
       });
 
@@ -194,15 +202,16 @@ const Dashboard = () => {
 
       toast({
         title: "Order submitted!",
-        description: `Your order for ${quantity} has been placed. Total: $${charge.toFixed(2)}`,
+        description: `Your order for ${parseInt(quantity).toLocaleString()} ${selectedService!.name} has been placed. Total: $${charge.toFixed(2)}`,
       });
 
       // Reset form
       setLink("");
       setQuantity("");
       setSelectedCategory("");
-      setSelectedService("");
+      setSelectedServiceId("");
     } catch (error: any) {
+      console.error("Order submission error:", error);
       toast({
         title: "Order failed",
         description: error.message || "Failed to place order. Please try again.",
@@ -212,12 +221,6 @@ const Dashboard = () => {
       setIsSubmitting(false);
     }
   };
-
-  const filteredCategories = categories.filter(
-    (cat) =>
-      cat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      cat.services.some((s) => s.name.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
 
   if (authLoading) {
     return (
@@ -230,13 +233,34 @@ const Dashboard = () => {
   return (
     <>
       <Helmet>
-        <title>Dashboard - ZimBoost SMM Panel</title>
-        <meta name="description" content="Place orders and manage your social media growth with ZimBoost dashboard." />
+        <title>Dashboard - scrVll SMM Panel</title>
+        <meta name="description" content="Place orders and manage your social media growth with scrVll dashboard." />
       </Helmet>
 
       <DashboardLayout title="New Order">
         <div className="flex-1 p-4 md:p-6 lg:p-8">
           <div className="max-w-2xl mx-auto">
+            {/* Balance Warning */}
+            {profile && profile.balance < 1 && (
+              <div className="mb-6 p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-yellow-500">Low Balance</p>
+                  <p className="text-sm text-muted-foreground">
+                    Your balance is ${profile.balance.toFixed(2)}. Add funds to place orders.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                    onClick={() => navigate("/dashboard/add-funds")}
+                  >
+                    Add Funds
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="bg-card rounded-2xl border border-border p-6 space-y-6">
               {/* Search */}
               <div className="space-y-2">
@@ -257,12 +281,12 @@ const Dashboard = () => {
                 <Label className="text-primary font-semibold">Category</Label>
                 <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                   <SelectTrigger className="h-12 bg-background border-border">
-                    <SelectValue placeholder="Select a category" />
+                    <SelectValue placeholder={servicesLoading ? "Loading..." : "Select a category"} />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-card border-border">
                     {filteredCategories.map((category) => (
-                      <SelectItem key={category.id} value={category.id}>
-                        {category.name}
+                      <SelectItem key={category} value={category}>
+                        {category}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -273,26 +297,29 @@ const Dashboard = () => {
               <div className="space-y-2">
                 <Label className="text-primary font-semibold">Service</Label>
                 <Select
-                  value={selectedService}
-                  onValueChange={setSelectedService}
+                  value={selectedServiceId}
+                  onValueChange={setSelectedServiceId}
                   disabled={!selectedCategory}
                 >
                   <SelectTrigger className="h-12 bg-background border-border">
                     <SelectValue placeholder="Select a service" />
                   </SelectTrigger>
-                  <SelectContent>
-                    {currentCategory?.services.map((service) => (
+                  <SelectContent className="bg-card border-border max-h-60">
+                    {categoryServices?.map((service) => (
                       <SelectItem key={service.id} value={service.id}>
-                        <span className="inline-flex items-center gap-2">
-                          <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-xs font-medium">
-                            {service.id}
+                        <div className="flex flex-col items-start">
+                          <span className="font-medium">{service.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            ${service.price_per_1000.toFixed(2)}/1k • Min: {service.min_quantity.toLocaleString()}
                           </span>
-                          <span>{service.name}</span>
-                        </span>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {selectedService?.description && (
+                  <p className="text-sm text-muted-foreground">{selectedService.description}</p>
+                )}
               </div>
 
               {/* Link */}
@@ -305,6 +332,9 @@ const Dashboard = () => {
                   onChange={(e) => setLink(e.target.value)}
                   className="h-12 bg-background border-border"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Enter the full URL to your profile or post
+                </p>
               </div>
 
               {/* Quantity */}
@@ -316,12 +346,12 @@ const Dashboard = () => {
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value)}
                   className="h-12 bg-background border-border"
-                  min={currentService?.min}
-                  max={currentService?.max}
+                  min={selectedService?.min_quantity}
+                  max={selectedService?.max_quantity}
                 />
-                {currentService && (
+                {selectedService && (
                   <p className="text-sm text-muted-foreground">
-                    Min: {currentService.min.toLocaleString()} - Max: {currentService.max.toLocaleString()}
+                    Min: {selectedService.min_quantity.toLocaleString()} - Max: {selectedService.max_quantity.toLocaleString()}
                   </p>
                 )}
               </div>
@@ -329,27 +359,39 @@ const Dashboard = () => {
               {/* Charge */}
               <div className="space-y-2">
                 <Label className="text-primary font-semibold">Charge</Label>
-                <div className="h-12 px-4 flex items-center bg-secondary/50 rounded-lg border border-border">
+                <div className="h-12 px-4 flex items-center justify-between bg-secondary/50 rounded-lg border border-border">
                   <span className="text-lg font-bold text-foreground">
                     ${charge.toFixed(2)}
                   </span>
+                  {profile && (
+                    <span className={`text-sm ${charge > profile.balance ? "text-destructive" : "text-muted-foreground"}`}>
+                      Balance: ${profile.balance.toFixed(2)}
+                    </span>
+                  )}
                 </div>
-                {currentService && (
+                {selectedService && (
                   <p className="text-sm text-muted-foreground">
-                    Rate: ${currentService.price.toFixed(2)} per 1000
+                    Rate: ${selectedService.price_per_1000.toFixed(2)} per 1,000
                   </p>
                 )}
               </div>
 
               {/* Submit */}
-              <Button type="submit" variant="hero" className="w-full h-12" disabled={isSubmitting}>
+              <Button 
+                type="submit" 
+                variant="hero" 
+                className="w-full h-12" 
+                disabled={isSubmitting || !selectedService || charge === 0 || (profile && charge > profile.balance)}
+              >
                 {isSubmitting ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Processing...
                   </>
+                ) : profile && charge > profile.balance ? (
+                  "Insufficient Balance"
                 ) : (
-                  "Submit Order"
+                  `Submit Order - $${charge.toFixed(2)}`
                 )}
               </Button>
             </form>
