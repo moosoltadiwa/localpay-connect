@@ -10,6 +10,8 @@ import {
   CreditCard,
   LogOut,
   BarChart3,
+  Settings,
+  Receipt,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
@@ -29,6 +31,21 @@ const AdminLayout = ({ children, title }: AdminLayoutProps) => {
   const { profile, signOut, loading: authLoading } = useAuth();
   const { isAdmin, loading: adminLoading } = useAdmin();
 
+  // Fetch pending payment proofs count
+  const { data: pendingProofsCount } = useQuery({
+    queryKey: ["pending-proofs-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("payment_proofs")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "pending");
+      
+      if (error) throw error;
+      return count || 0;
+    },
+    refetchInterval: 30000,
+  });
+
   // Fetch pending deposits count
   const { data: pendingDepositsCount } = useQuery({
     queryKey: ["pending-deposits-count"],
@@ -42,7 +59,7 @@ const AdminLayout = ({ children, title }: AdminLayoutProps) => {
       if (error) throw error;
       return count || 0;
     },
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 30000,
   });
 
   const navItems = [
@@ -51,6 +68,8 @@ const AdminLayout = ({ children, title }: AdminLayoutProps) => {
     { path: "/admin/services", icon: Package, label: "Services", badge: 0 },
     { path: "/admin/customers", icon: Users, label: "Customers", badge: 0 },
     { path: "/admin/transactions", icon: CreditCard, label: "Transactions", badge: pendingDepositsCount || 0 },
+    { path: "/admin/payment-proofs", icon: Receipt, label: "Payment Proofs", badge: pendingProofsCount || 0 },
+    { path: "/admin/settings", icon: Settings, label: "Settings", badge: 0 },
   ];
 
   useEffect(() => {

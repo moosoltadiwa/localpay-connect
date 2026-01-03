@@ -8,10 +8,10 @@ import {
   Smartphone,
   Building,
   CheckCircle,
-  CreditCard,
   Wallet,
   Loader2,
-  ExternalLink,
+  Upload,
+  Camera,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -20,25 +20,11 @@ import DashboardLayout from "@/components/DashboardLayout";
 
 const paymentMethods = [
   {
-    id: "paynow",
-    name: "PayNow",
-    description: "Pay with PayNow Zimbabwe",
-    icon: CreditCard,
-    color: "bg-blue-500",
-  },
-  {
-    id: "ecocash",
+    id: "ecocash-manual",
     name: "EcoCash",
-    description: "Pay with EcoCash mobile money",
+    description: "Pay via EcoCash & upload proof",
     icon: Smartphone,
     color: "bg-green-500",
-  },
-  {
-    id: "onemoney",
-    name: "OneMoney",
-    description: "Pay with OneMoney mobile money",
-    icon: Smartphone,
-    color: "bg-purple-500",
   },
   {
     id: "bank",
@@ -51,6 +37,9 @@ const paymentMethods = [
 
 const presetAmounts = [5, 10, 20, 50, 100, 200];
 
+const ECOCASH_NUMBER = "0771234567"; // Replace with actual EcoCash merchant number
+const ECOCASH_NAME = "ZimBoost SMM"; // Replace with actual name
+
 const AddFunds = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -60,12 +49,9 @@ const AddFunds = () => {
   const [amount, setAmount] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [pendingTransaction, setPendingTransaction] = useState<{
-    id: string;
-    instructions?: string;
-    redirectUrl?: string;
-  } | null>(null);
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [screenshot, setScreenshot] = useState<File | null>(null);
+  const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Redirect if not logged in
   useEffect(() => {
@@ -86,54 +72,33 @@ const AddFunds = () => {
     }
   }, [searchParams, toast, refreshProfile]);
 
-  // Cleanup polling on unmount
-  useEffect(() => {
-    return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-      }
-    };
-  }, []);
-
-  const pollTransactionStatus = async (transactionId: string) => {
-    try {
-      const { data, error } = await supabase.functions.invoke("paynow-poll", {
-        body: { transactionId },
-      });
-
-      if (error) {
-        console.error("Poll error:", error);
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          title: "File too large",
+          description: "Please select an image under 5MB.",
+          variant: "destructive",
+        });
         return;
       }
 
-      if (data.completed) {
-        if (pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current);
-          pollIntervalRef.current = null;
-        }
-        setPendingTransaction(null);
-        await refreshProfile();
+      if (!file.type.startsWith("image/")) {
         toast({
-          title: "Payment Successful!",
-          description: "Your wallet has been topped up.",
-        });
-        setAmount("");
-        setPhoneNumber("");
-        setSelectedMethod("");
-      } else if (data.status === "failed") {
-        if (pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current);
-          pollIntervalRef.current = null;
-        }
-        setPendingTransaction(null);
-        toast({
-          title: "Payment Failed",
-          description: "Your payment was not successful. Please try again.",
+          title: "Invalid file type",
+          description: "Please select an image file.",
           variant: "destructive",
         });
+        return;
       }
-    } catch (err) {
-      console.error("Poll error:", err);
+
+      setScreenshot(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setScreenshotPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -159,12 +124,92 @@ const AddFunds = () => {
       return;
     }
 
-    if ((selectedMethod === "ecocash" || selectedMethod === "onemoney") && !phoneNumber) {
-      toast({
-        title: "Phone number required",
-        description: "Please enter your mobile money phone number.",
-        variant: "destructive",
-      });
+    // Manual EcoCash payment
+    if (selectedMethod === "ecocash-manual") {
+      if (!phoneNumber) {
+        toast({
+          title: "Phone number required",
+          description: "Please enter the phone number you paid from.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!screenshot) {
+        toast({
+          title: "Screenshot required",
+          description: "Please upload a screenshot of your EcoCash payment.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setIsSubmitting(true);
+      try {
+        // Create pending transaction
+        const reference = `ECO-${Date.now()}-${user!.id.slice(0, 8)}`;
+        const { data: transaction, error: txError } = await supabase
+          .from("wallet_transactions")
+          .insert({
+            user_id: user!.id,
+            type: "deposit",
+            amount: numAmount,
+            payment_method: "ecocash-manual",
+            reference: reference,
+            status: "pending",
+          })
+          .select()
+          .single();
+
+        if (txError) throw txError;
+
+        // Upload screenshot
+        const fileExt = screenshot.name.split(".").pop();
+        const fileName = `${user!.id}/${transaction.id}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage
+          .from("payment-proofs")
+          .upload(fileName, screenshot);
+
+        if (uploadError) throw uploadError;
+
+        // Get public URL
+        const { data: urlData } = supabase.storage
+          .from("payment-proofs")
+          .getPublicUrl(fileName);
+
+        // Create payment proof record
+        const { error: proofError } = await supabase
+          .from("payment_proofs")
+          .insert({
+            user_id: user!.id,
+            transaction_id: transaction.id,
+            screenshot_url: urlData.publicUrl,
+            phone_number: phoneNumber,
+            status: "pending",
+          });
+
+        if (proofError) throw proofError;
+
+        toast({
+          title: "Payment Proof Submitted",
+          description: "Your payment is being reviewed. Funds will be credited once approved.",
+        });
+
+        setAmount("");
+        setPhoneNumber("");
+        setSelectedMethod("");
+        setScreenshot(null);
+        setScreenshotPreview(null);
+      } catch (error: any) {
+        console.error("Payment error:", error);
+        toast({
+          title: "Failed to submit payment",
+          description: error.message,
+          variant: "destructive",
+        });
+      } finally {
+        setIsSubmitting(false);
+      }
       return;
     }
 
@@ -172,7 +217,6 @@ const AddFunds = () => {
     if (selectedMethod === "bank") {
       setIsSubmitting(true);
       try {
-        // Create pending transaction for admin to approve
         const reference = `BANK-${Date.now()}-${user!.email}`;
         const { error } = await supabase.from("wallet_transactions").insert({
           user_id: user!.id,
@@ -203,80 +247,9 @@ const AddFunds = () => {
       }
       return;
     }
-
-    setIsSubmitting(true);
-
-    try {
-      // Call the PayNow initiate edge function
-      const { data, error } = await supabase.functions.invoke("paynow-initiate", {
-        body: {
-          amount: numAmount,
-          paymentMethod: selectedMethod,
-          phoneNumber: phoneNumber || undefined,
-          email: user!.email,
-          userId: user!.id,
-        },
-      });
-
-      if (error) throw error;
-      if (!data.success) throw new Error(data.error || "Payment failed");
-
-      // Handle mobile money (EcoCash/OneMoney) - show instructions
-      if (selectedMethod === "ecocash" || selectedMethod === "onemoney") {
-        setPendingTransaction({
-          id: data.transactionId,
-          instructions: data.instructions || `A payment prompt has been sent to ${phoneNumber}. Please enter your PIN on your phone to complete the payment.`,
-        });
-
-        // Start polling for status
-        pollIntervalRef.current = setInterval(() => {
-          pollTransactionStatus(data.transactionId);
-        }, 5000);
-
-        toast({
-          title: "Payment Initiated",
-          description: "Check your phone for the payment prompt.",
-        });
-      } else {
-        // Web payment - redirect to PayNow
-        if (data.redirectUrl) {
-          setPendingTransaction({
-            id: data.transactionId,
-            redirectUrl: data.redirectUrl,
-          });
-
-          // Start polling in case they complete payment
-          pollIntervalRef.current = setInterval(() => {
-            pollTransactionStatus(data.transactionId);
-          }, 5000);
-
-          toast({
-            title: "Redirecting to PayNow",
-            description: "You will be redirected to complete your payment.",
-          });
-        }
-      }
-    } catch (error: any) {
-      console.error("Payment error:", error);
-      toast({
-        title: "Payment failed",
-        description: error.message || "Failed to process payment. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
   };
 
-  const cancelPendingPayment = () => {
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
-    }
-    setPendingTransaction(null);
-  };
-
-  const selectedPaymentMethod = paymentMethods.find(m => m.id === selectedMethod);
+  const selectedPaymentMethod = paymentMethods.find((m) => m.id === selectedMethod);
 
   if (authLoading) {
     return (
@@ -290,7 +263,10 @@ const AddFunds = () => {
     <>
       <Helmet>
         <title>Add Funds - ZimBoost SMM Panel</title>
-        <meta name="description" content="Top up your wallet using PayNow, EcoCash, OneMoney, or Bank Transfer." />
+        <meta
+          name="description"
+          content="Top up your wallet using EcoCash or Bank Transfer."
+        />
       </Helmet>
 
       <DashboardLayout title="Add Funds">
@@ -299,69 +275,16 @@ const AddFunds = () => {
             {/* Current Balance Card */}
             <div className="bg-gradient-to-r from-primary to-accent rounded-2xl p-6 text-primary-foreground">
               <p className="text-sm opacity-80">Current Balance</p>
-              <p className="text-4xl font-bold mt-1">${profile?.balance?.toFixed(2) || "0.00"}</p>
+              <p className="text-4xl font-bold mt-1">
+                ${profile?.balance?.toFixed(2) || "0.00"}
+              </p>
               <p className="text-sm opacity-80 mt-2">Top up your wallet to place orders</p>
             </div>
 
-            {/* Pending Transaction UI */}
-            {pendingTransaction && (
-              <div className="bg-card rounded-2xl border-2 border-primary p-6 space-y-4 animate-in fade-in">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-                    <Loader2 className="w-5 h-5 text-primary animate-spin" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-foreground">Payment In Progress</h3>
-                    <p className="text-sm text-muted-foreground">Waiting for payment confirmation...</p>
-                  </div>
-                </div>
-
-                {pendingTransaction.instructions && (
-                  <div className="p-4 rounded-lg bg-secondary/50 border border-border">
-                    <p className="text-sm text-foreground">{pendingTransaction.instructions}</p>
-                  </div>
-                )}
-
-                {pendingTransaction.redirectUrl && (
-                  <div className="space-y-3">
-                    <p className="text-sm text-muted-foreground">
-                      Click the button below to complete your payment on PayNow:
-                    </p>
-                    <a
-                      href={pendingTransaction.redirectUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                      Complete Payment on PayNow
-                    </a>
-                  </div>
-                )}
-
-                <div className="flex gap-3 pt-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={cancelPendingPayment}
-                    className="flex-1"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => pollTransactionStatus(pendingTransaction.id)}
-                    className="flex-1"
-                  >
-                    Check Status
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {!pendingTransaction && (
-            <form onSubmit={handleSubmit} className="bg-card rounded-2xl border border-border p-6 space-y-6">
+            <form
+              onSubmit={handleSubmit}
+              className="bg-card rounded-2xl border border-border p-6 space-y-6"
+            >
               {/* Amount Selection */}
               <div className="space-y-3">
                 <Label className="text-primary font-semibold">Select Amount (USD)</Label>
@@ -382,7 +305,9 @@ const AddFunds = () => {
                   ))}
                 </div>
                 <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold">$</span>
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold">
+                    $
+                  </span>
                   <Input
                     type="number"
                     placeholder="Enter custom amount"
@@ -415,12 +340,16 @@ const AddFunds = () => {
                         {selectedMethod === method.id && (
                           <CheckCircle className="absolute top-2 right-2 w-5 h-5 text-primary" />
                         )}
-                        <div className={`w-12 h-12 rounded-xl ${method.color} flex items-center justify-center flex-shrink-0`}>
+                        <div
+                          className={`w-12 h-12 rounded-xl ${method.color} flex items-center justify-center flex-shrink-0`}
+                        >
                           <Icon className="w-6 h-6 text-white" />
                         </div>
                         <div>
                           <p className="font-semibold text-foreground">{method.name}</p>
-                          <p className="text-sm text-muted-foreground">{method.description}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {method.description}
+                          </p>
                         </div>
                       </button>
                     );
@@ -428,20 +357,97 @@ const AddFunds = () => {
                 </div>
               </div>
 
-              {/* Phone Number for Mobile Money */}
-              {(selectedMethod === "ecocash" || selectedMethod === "onemoney") && (
-                <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
-                  <Label className="text-primary font-semibold">Phone Number</Label>
-                  <Input
-                    type="tel"
-                    placeholder="e.g. 0771234567"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    className="h-12 bg-background border-border"
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    Enter the phone number linked to your {selectedPaymentMethod?.name} account
-                  </p>
+              {/* EcoCash Manual Payment Instructions */}
+              {selectedMethod === "ecocash-manual" && (
+                <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                  {/* Payment Instructions */}
+                  <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20 space-y-3">
+                    <p className="font-semibold text-foreground flex items-center gap-2">
+                      <Smartphone className="w-5 h-5 text-green-500" />
+                      EcoCash Payment Instructions
+                    </p>
+                    <div className="text-sm text-muted-foreground space-y-2">
+                      <p>
+                        1. Open your EcoCash menu and select <strong>Send Money</strong>
+                      </p>
+                      <p>
+                        2. Enter number: <strong className="text-foreground">{ECOCASH_NUMBER}</strong>
+                      </p>
+                      <p>
+                        3. Enter amount: <strong className="text-foreground">${amount || "0.00"} USD</strong>
+                      </p>
+                      <p>
+                        4. Confirm: <strong className="text-foreground">{ECOCASH_NAME}</strong>
+                      </p>
+                      <p>5. Take a screenshot of the confirmation message</p>
+                    </div>
+                  </div>
+
+                  {/* Phone Number */}
+                  <div className="space-y-2">
+                    <Label className="text-primary font-semibold">
+                      Your EcoCash Phone Number
+                    </Label>
+                    <Input
+                      type="tel"
+                      placeholder="e.g. 0771234567"
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      className="h-12 bg-background border-border"
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      The phone number you used to send the payment
+                    </p>
+                  </div>
+
+                  {/* Screenshot Upload */}
+                  <div className="space-y-2">
+                    <Label className="text-primary font-semibold">
+                      Upload Payment Screenshot
+                    </Label>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                    {screenshotPreview ? (
+                      <div className="relative">
+                        <img
+                          src={screenshotPreview}
+                          alt="Payment proof"
+                          className="w-full max-h-64 object-contain rounded-xl border border-border"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setScreenshot(null);
+                            setScreenshotPreview(null);
+                          }}
+                          className="absolute top-2 right-2 p-2 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full h-32 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-2 hover:border-primary/50 hover:bg-primary/5 transition-colors"
+                      >
+                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                          <Camera className="w-6 h-6 text-primary" />
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Click to upload screenshot
+                        </p>
+                      </button>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Upload a clear screenshot showing the EcoCash confirmation message
+                    </p>
+                  </div>
                 </div>
               )}
 
@@ -450,10 +456,20 @@ const AddFunds = () => {
                 <div className="p-4 rounded-xl bg-secondary/50 border border-border space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
                   <p className="font-semibold text-foreground">Bank Transfer Details</p>
                   <div className="text-sm text-muted-foreground space-y-1">
-                    <p><span className="font-medium text-foreground">Bank:</span> FBC Bank</p>
-                    <p><span className="font-medium text-foreground">Account Name:</span> ZimBoost (Pvt) Ltd</p>
-                    <p><span className="font-medium text-foreground">Account Number:</span> 1234567890</p>
-                    <p><span className="font-medium text-foreground">Branch:</span> Harare</p>
+                    <p>
+                      <span className="font-medium text-foreground">Bank:</span> FBC Bank
+                    </p>
+                    <p>
+                      <span className="font-medium text-foreground">Account Name:</span>{" "}
+                      ZimBoost (Pvt) Ltd
+                    </p>
+                    <p>
+                      <span className="font-medium text-foreground">Account Number:</span>{" "}
+                      1234567890
+                    </p>
+                    <p>
+                      <span className="font-medium text-foreground">Branch:</span> Harare
+                    </p>
                   </div>
                   <p className="text-xs text-muted-foreground mt-2">
                     Include your email as reference. Funds will be credited within 24 hours.
@@ -466,7 +482,9 @@ const AddFunds = () => {
                 <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Amount</span>
-                    <span className="text-foreground font-medium">${parseFloat(amount).toFixed(2)}</span>
+                    <span className="text-foreground font-medium">
+                      ${parseFloat(amount).toFixed(2)}
+                    </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Fee</span>
@@ -474,32 +492,34 @@ const AddFunds = () => {
                   </div>
                   <div className="border-t border-border pt-2 flex justify-between">
                     <span className="font-semibold text-foreground">Total</span>
-                    <span className="font-bold text-primary">${parseFloat(amount).toFixed(2)}</span>
+                    <span className="font-bold text-primary text-lg">
+                      ${parseFloat(amount).toFixed(2)}
+                    </span>
                   </div>
                 </div>
               )}
 
-              {/* Submit */}
-              <Button type="submit" variant="hero" className="w-full h-12" disabled={isSubmitting}>
+              {/* Submit Button */}
+              <Button
+                type="submit"
+                className="w-full h-12 text-lg font-semibold"
+                disabled={isSubmitting || !selectedMethod || !amount}
+              >
                 {isSubmitting ? (
                   <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
                     Processing...
                   </>
                 ) : (
                   <>
                     <Wallet className="w-5 h-5 mr-2" />
-                    Add Funds
+                    {selectedMethod === "ecocash-manual"
+                      ? "Submit Payment Proof"
+                      : "Submit Request"}
                   </>
                 )}
               </Button>
-
-              {/* Security Note */}
-              <p className="text-center text-xs text-muted-foreground">
-                🔒 Your payment is secured with 256-bit SSL encryption
-              </p>
             </form>
-            )}
           </div>
         </div>
       </DashboardLayout>

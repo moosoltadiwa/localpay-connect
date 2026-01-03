@@ -18,6 +18,8 @@ import AdminOrders from "./pages/admin/AdminOrders";
 import AdminServices from "./pages/admin/AdminServices";
 import AdminCustomers from "./pages/admin/AdminCustomers";
 import AdminTransactions from "./pages/admin/AdminTransactions";
+import AdminSettings from "./pages/admin/AdminSettings";
+import AdminPaymentProofs from "./pages/admin/AdminPaymentProofs";
 import WhatsAppButton from "./components/WhatsAppButton";
 
 const queryClient = new QueryClient();
@@ -44,6 +46,8 @@ const App = () => (
               <Route path="/admin/services" element={<AdminServices />} />
               <Route path="/admin/customers" element={<AdminCustomers />} />
               <Route path="/admin/transactions" element={<AdminTransactions />} />
+              <Route path="/admin/settings" element={<AdminSettings />} />
+              <Route path="/admin/payment-proofs" element={<AdminPaymentProofs />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
