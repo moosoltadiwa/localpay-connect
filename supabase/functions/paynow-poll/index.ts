@@ -4,7 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 function parsePaynowResponse(response: string): Record<string, string> {
@@ -27,7 +27,41 @@ serve(async (req: Request): Promise<Response> => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+    // SECURITY FIX: Verify user authentication
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Create client with user's auth to verify identity
+    const supabaseAuth = createClient(supabaseUrl!, supabaseAnonKey!, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claims, error: claimsError } = await supabaseAuth.auth.getClaims(token);
+    
+    if (claimsError || !claims?.claims) {
+      console.error("Auth verification failed:", claimsError);
+      return new Response(
+        JSON.stringify({ success: false, error: "Invalid authentication" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const userId = claims.claims.sub;
+    if (!userId) {
+      return new Response(
+        JSON.stringify({ success: false, error: "User ID not found in token" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     const { transactionId } = await req.json();
 
@@ -35,18 +69,23 @@ serve(async (req: Request): Promise<Response> => {
       throw new Error("Transaction ID required");
     }
 
-    // Create Supabase client with service role
+    // Create Supabase client with service role for privileged operations
     const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
 
-    // Get the transaction
+    // Get the transaction - SECURITY FIX: Verify user owns this transaction
     const { data: transaction, error: txError } = await supabase
       .from("wallet_transactions")
       .select("*")
       .eq("id", transactionId)
+      .eq("user_id", userId) // Only allow polling own transactions
       .single();
 
     if (txError || !transaction) {
-      throw new Error("Transaction not found");
+      console.error("Transaction not found or access denied:", transactionId, "user:", userId);
+      return new Response(
+        JSON.stringify({ success: false, error: "Transaction not found or access denied" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     // If already completed or failed, return current status
@@ -83,7 +122,7 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    console.log("Polling PayNow status:", pollUrl);
+    console.log("Polling PayNow status:", pollUrl, "for user:", userId);
 
     // Poll PayNow for status
     const response = await fetch(pollUrl);
@@ -104,13 +143,40 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     if (newStatus) {
-      // Update transaction status
-      await supabase
+      // SECURITY FIX: Use atomic update with status check to prevent race conditions
+      // Only update if status is still 'pending' - prevents duplicate balance credits
+      const { data: updatedTx, error: updateError } = await supabase
         .from("wallet_transactions")
         .update({ status: newStatus })
-        .eq("id", transactionId);
+        .eq("id", transactionId)
+        .eq("status", "pending") // Atomic check - only update if still pending
+        .select()
+        .single();
 
-      // If completed, update user balance
+      // If no rows updated, transaction was already processed
+      if (updateError || !updatedTx) {
+        console.log("Transaction already processed by another request");
+        // Fetch current status to return accurate info
+        const { data: currentTx } = await supabase
+          .from("wallet_transactions")
+          .select("status")
+          .eq("id", transactionId)
+          .single();
+        
+        return new Response(
+          JSON.stringify({
+            success: true,
+            status: currentTx?.status || newStatus,
+            completed: currentTx?.status === "completed" || newStatus === "completed",
+          }),
+          {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // If completed and we successfully updated, update user balance
       if (newStatus === "completed") {
         const { data: profile } = await supabase
           .from("profiles")
@@ -125,7 +191,7 @@ serve(async (req: Request): Promise<Response> => {
             .update({ balance: newBalance })
             .eq("id", transaction.user_id);
 
-          console.log("Balance updated via poll:", newBalance);
+          console.log("Balance updated via poll:", newBalance, "for user:", userId);
         }
       }
 

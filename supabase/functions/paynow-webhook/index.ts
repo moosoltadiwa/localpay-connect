@@ -78,15 +78,19 @@ serve(async (req: Request): Promise<Response> => {
       return new Response("Invalid webhook data", { status: 400 });
     }
 
-    // Verify hash if provided
-    if (hash) {
-      const isValid = await verifyHash(data, hash, integrationKey);
-      if (!isValid) {
-        console.error("Hash verification failed");
-        return new Response("Invalid hash", { status: 403 });
-      }
-      console.log("Hash verified successfully");
+    // SECURITY FIX: Hash verification is now MANDATORY
+    // Reject any webhook request that doesn't include a valid hash
+    if (!hash) {
+      console.error("SECURITY: Webhook rejected - no hash provided");
+      return new Response("Authentication required - hash missing", { status: 401 });
     }
+
+    const isValid = await verifyHash(data, hash, integrationKey);
+    if (!isValid) {
+      console.error("SECURITY: Hash verification failed");
+      return new Response("Invalid hash", { status: 403 });
+    }
+    console.log("Hash verified successfully");
 
     // Create Supabase client with service role
     const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
@@ -130,18 +134,23 @@ serve(async (req: Request): Promise<Response> => {
 
     console.log("Updating transaction status to:", newStatus);
 
-    // Update transaction status
-    const { error: updateError } = await supabase
+    // SECURITY FIX: Use atomic update with status check to prevent race conditions
+    // Only update if status is still 'pending' - prevents duplicate processing
+    const { data: updatedTx, error: updateError } = await supabase
       .from("wallet_transactions")
       .update({ 
         status: newStatus,
         reference: paynowreference ? `${reference}|PN:${paynowreference}` : transaction.reference,
       })
-      .eq("id", transaction.id);
+      .eq("id", transaction.id)
+      .eq("status", "pending") // Atomic check - only update if still pending
+      .select()
+      .single();
 
-    if (updateError) {
-      console.error("Failed to update transaction:", updateError);
-      return new Response("Update failed", { status: 500 });
+    if (updateError || !updatedTx) {
+      // If no rows updated, transaction was already processed
+      console.log("Transaction already processed by another request or update failed");
+      return new Response("OK", { status: 200 });
     }
 
     // If payment completed, update user balance
