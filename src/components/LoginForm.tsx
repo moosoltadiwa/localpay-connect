@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,10 +11,12 @@ const LoginForm = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle login logic
+    setIsAnimating(true);
+    setTimeout(() => setIsAnimating(false), 600);
     console.log({ email, password, rememberMe });
   };
 
@@ -95,8 +97,19 @@ const LoginForm = () => {
             </Link>
           </div>
 
-          <Button type="submit" variant="hero" className="w-full h-12">
-            Sign In
+          <Button
+            type="submit"
+            variant="hero"
+            className={`w-full h-12 transition-transform duration-300 ${isAnimating ? "scale-95 opacity-80" : "scale-100 opacity-100"}`}
+          >
+            {isAnimating ? (
+              <span className="inline-flex items-center gap-2">
+                <span className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                Signing in...
+              </span>
+            ) : (
+              "Sign In"
+            )}
           </Button>
         </form>
 
