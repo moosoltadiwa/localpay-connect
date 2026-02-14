@@ -91,27 +91,16 @@ const AdminTransactions = () => {
 
       if (updateError) throw updateError;
 
-      // If approving a deposit, update user's balance
+      // If approving a deposit, update user's balance atomically
       if (newStatus === "completed" && transaction.type === "deposit") {
-        // Get current user balance
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("balance")
-          .eq("id", transaction.user_id)
-          .single();
-
-        if (profileError) throw profileError;
-
-        const newBalance = (profile.balance || 0) + Number(transaction.amount);
-
-        const { error: balanceError } = await supabase
-          .from("profiles")
-          .update({ balance: newBalance })
-          .eq("id", transaction.user_id);
+        const { data: newBalance, error: balanceError } = await supabase.rpc("adjust_balance", {
+          p_user_id: transaction.user_id,
+          p_amount: Number(transaction.amount),
+        });
 
         if (balanceError) throw balanceError;
 
-        toast.success(`Deposit approved! User balance updated to $${newBalance.toFixed(2)}`);
+        toast.success(`Deposit approved! User balance updated to $${Number(newBalance).toFixed(2)}`);
       } else if (newStatus === "failed") {
         toast.success("Transaction rejected");
       } else {

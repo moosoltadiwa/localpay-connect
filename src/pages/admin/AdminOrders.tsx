@@ -154,20 +154,11 @@ const AdminOrders = () => {
 
       if (orderError) throw orderError;
 
-      // Get user's current balance
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("balance")
-        .eq("id", selectedOrder.user_id)
-        .single();
-
-      if (profileError) throw profileError;
-
-      // Add refund amount to user's balance
-      const { error: balanceError } = await supabase
-        .from("profiles")
-        .update({ balance: Number(profile.balance) + Number(selectedOrder.charge) })
-        .eq("id", selectedOrder.user_id);
+      // Add refund amount to user's balance atomically
+      const { error: balanceError } = await supabase.rpc("adjust_balance", {
+        p_user_id: selectedOrder.user_id,
+        p_amount: Number(selectedOrder.charge),
+      });
 
       if (balanceError) throw balanceError;
 
