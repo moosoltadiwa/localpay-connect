@@ -5,7 +5,7 @@ const steps = [
     number: 1,
     icon: UserPlus,
     title: "Sign Up & Log In",
-    description: "Create your free ZimBoost account in seconds. No credit card required to get started.",
+    description: "Create your free scrVll account in seconds. No credit card required to get started.",
   },
   {
     number: 2,
@@ -37,7 +37,7 @@ const HowItWorks = () => {
           </span>
           <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-4">
             How to Place Orders on{" "}
-            <span className="gradient-text">ZimBoost</span>
+            <span className="gradient-text">scrVll</span>
           </h2>
           <p className="text-muted-foreground text-lg">
             Get started in just a few simple steps. It's quick, easy, and secure.

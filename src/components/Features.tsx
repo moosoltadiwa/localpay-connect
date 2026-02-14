@@ -43,7 +43,7 @@ const Features = () => {
           </span>
           <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-4">
             Reasons to Pick{" "}
-            <span className="gradient-text">ZimBoost</span>
+            <span className="gradient-text">scrVll</span>
           </h2>
           <p className="text-muted-foreground text-lg">
             We provide the best SMM services in Zimbabwe with local payment options and instant delivery.

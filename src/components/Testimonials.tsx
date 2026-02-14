@@ -6,7 +6,7 @@ const testimonials = [
     name: "Tendai Moyo",
     role: "Instagram Influencer",
     image: "https://randomuser.me/api/portraits/women/44.jpg",
-    content: "ZimBoost helped me grow my Instagram from 2K to 50K followers in just 3 months! The delivery is super fast and the support team on WhatsApp is amazing.",
+    content: "scrVll helped me grow my Instagram from 2K to 50K followers in just 3 months! The delivery is super fast and the support team on WhatsApp is amazing.",
     rating: 5,
   },
   {
@@ -20,7 +20,7 @@ const testimonials = [
     name: "Rudo Mutasa",
     role: "TikTok Creator",
     image: "https://randomuser.me/api/portraits/women/68.jpg",
-    content: "I was struggling to get views on TikTok. After using ZimBoost, my videos started going viral! The prices are affordable and results are real.",
+    content: "I was struggling to get views on TikTok. After using scrVll, my videos started going viral! The prices are affordable and results are real.",
     rating: 5,
   },
   {
@@ -55,7 +55,7 @@ const Testimonials = () => {
             <span className="gradient-text">Say</span>
           </h2>
           <p className="text-muted-foreground text-lg">
-            Join thousands of satisfied customers who have grown their social media presence with ZimBoost.
+            Join thousands of satisfied customers who have grown their social media presence with scrVll.
           </p>
         </div>
 

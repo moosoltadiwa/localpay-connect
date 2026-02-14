@@ -14,16 +14,16 @@ const Index = () => {
   return (
     <>
       <Helmet>
-        <title>ZimBoost - Zimbabwe's #1 SMM Panel | Buy Followers, Likes & Views</title>
+        <title>scrVll - Zimbabwe's #1 SMM Panel | Buy Followers, Likes & Views</title>
         <meta
           name="description"
-          content="Boost your social media with ZimBoost. Buy Instagram, TikTok, YouTube, Facebook followers, likes & views. Pay with PayNow, EcoCash. Fast delivery in Zimbabwe!"
+          content="Boost your social media with scrVll. Buy Instagram, TikTok, YouTube, Facebook followers, likes & views. Pay with PayNow, EcoCash. Fast delivery in Zimbabwe!"
         />
         <meta
           name="keywords"
           content="SMM panel Zimbabwe, buy followers Zimbabwe, Instagram followers, TikTok views, YouTube subscribers, PayNow, EcoCash, social media marketing"
         />
-        <link rel="canonical" href="https://zimboost.co.zw" />
+        <link rel="canonical" href="https://scrvll.co.zw" />
       </Helmet>
 
       <div className="min-h-screen">

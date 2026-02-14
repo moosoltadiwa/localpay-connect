@@ -23,7 +23,7 @@ const CTA = () => {
           </h2>
 
           <p className="text-lg md:text-xl text-primary-foreground/80 mb-8 max-w-2xl mx-auto">
-            Join thousands of Zimbabweans who are growing their social media following with ZimBoost. Get started in minutes with PayNow.
+            Join thousands of Zimbabweans who are growing their social media following with scrVll. Get started in minutes with PayNow.
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-4">

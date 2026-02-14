@@ -11,7 +11,7 @@ const faqs = [
     answer: "After placing your order, select PayNow as your payment method. You'll receive a prompt on your EcoCash, OneMoney, or banking app to complete the payment. Once confirmed, your order starts processing immediately.",
   },
   {
-    question: "Is it safe to use ZimBoost?",
+    question: "Is it safe to use scrVll?",
     answer: "Absolutely! We never ask for your social media passwords. All we need is your username or post link. Our methods are 100% safe and comply with platform guidelines.",
   },
   {
@@ -24,7 +24,7 @@ const faqs = [
   },
   {
     question: "Can I get a refund?",
-    answer: "Yes, we offer refunds for orders that fail to deliver. Refunds are credited back to your ZimBoost wallet within 24 hours. Note: Partially completed orders are non-refundable.",
+    answer: "Yes, we offer refunds for orders that fail to deliver. Refunds are credited back to your scrVll wallet within 24 hours. Note: Partially completed orders are non-refundable.",
   },
   {
     question: "Do you offer bulk discounts?",
