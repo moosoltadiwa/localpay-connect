@@ -155,34 +155,19 @@ serve(async (req: Request): Promise<Response> => {
 
     // If payment completed, update user balance
     if (newStatus === "completed") {
-      // Get current profile
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("balance")
-        .eq("id", transaction.user_id)
-        .single();
-
-      if (profileError) {
-        console.error("Failed to get profile:", profileError);
-        return new Response("Profile error", { status: 500 });
-      }
-
-      const newBalance = (profile.balance || 0) + transaction.amount;
-      
-      const { error: balanceError } = await supabase
-        .from("profiles")
-        .update({ balance: newBalance })
-        .eq("id", transaction.user_id);
+      // Use atomic balance update via RPC
+      const { error: balanceError } = await supabase.rpc("adjust_balance", {
+        p_user_id: transaction.user_id,
+        p_amount: transaction.amount,
+      });
 
       if (balanceError) {
         console.error("Failed to update balance:", balanceError);
         return new Response("Balance update failed", { status: 500 });
       }
 
-      console.log("User balance updated:", {
+      console.log("User balance updated atomically:", {
         userId: transaction.user_id,
-        oldBalance: profile.balance,
-        newBalance: newBalance,
         amount: transaction.amount,
       });
     }

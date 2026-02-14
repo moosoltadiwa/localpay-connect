@@ -180,12 +180,11 @@ const Dashboard = () => {
 
       if (orderError) throw orderError;
 
-      // Deduct balance
-      const newBalance = (profile?.balance || 0) - charge;
-      const { error: balanceError } = await supabase
-        .from("profiles")
-        .update({ balance: newBalance })
-        .eq("id", user!.id);
+      // Deduct balance atomically
+      const { error: balanceError } = await supabase.rpc("adjust_balance", {
+        p_user_id: user!.id,
+        p_amount: -charge,
+      });
 
       if (balanceError) throw balanceError;
 

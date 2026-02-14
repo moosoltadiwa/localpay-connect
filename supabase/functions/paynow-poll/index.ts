@@ -176,22 +176,17 @@ serve(async (req: Request): Promise<Response> => {
         );
       }
 
-      // If completed and we successfully updated, update user balance
+      // If completed and we successfully updated, update user balance atomically
       if (newStatus === "completed") {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("balance")
-          .eq("id", transaction.user_id)
-          .single();
+        const { error: balanceError } = await supabase.rpc("adjust_balance", {
+          p_user_id: transaction.user_id,
+          p_amount: transaction.amount,
+        });
 
-        if (profile) {
-          const newBalance = (profile.balance || 0) + transaction.amount;
-          await supabase
-            .from("profiles")
-            .update({ balance: newBalance })
-            .eq("id", transaction.user_id);
-
-          console.log("Balance updated via poll:", newBalance, "for user:", userId);
+        if (balanceError) {
+          console.error("Failed to update balance via poll:", balanceError);
+        } else {
+          console.log("Balance updated atomically via poll for user:", userId);
         }
       }
 

@@ -180,20 +180,12 @@ const AdminPaymentProofs = () => {
 
       if (txError) throw txError;
 
-      // Update user balance
+      // Update user balance atomically
       const amount = selectedProof.wallet_transactions?.amount || 0;
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("balance")
-        .eq("id", selectedProof.user_id)
-        .single();
-
-      if (profileError) throw profileError;
-
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({ balance: (profile?.balance || 0) + amount })
-        .eq("id", selectedProof.user_id);
+      const { error: updateError } = await supabase.rpc("adjust_balance", {
+        p_user_id: selectedProof.user_id,
+        p_amount: amount,
+      });
 
       if (updateError) throw updateError;
 

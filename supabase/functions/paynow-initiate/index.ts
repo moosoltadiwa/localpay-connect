@@ -4,7 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 interface PaymentRequest {
@@ -70,6 +70,7 @@ serve(async (req: Request): Promise<Response> => {
     const integrationId = Deno.env.get("PAYNOW_INTEGRATION_ID");
     const integrationKey = Deno.env.get("PAYNOW_INTEGRATION_KEY");
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     if (!integrationId || !integrationKey) {
@@ -77,7 +78,47 @@ serve(async (req: Request): Promise<Response> => {
       throw new Error("Payment gateway not configured");
     }
 
+    // SECURITY FIX: Verify user authentication
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const supabaseAuth = createClient(supabaseUrl!, supabaseAnonKey!, {
+      global: { headers: { Authorization: authHeader } },
+    });
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claims, error: claimsError } = await supabaseAuth.auth.getClaims(token);
+
+    if (claimsError || !claims?.claims) {
+      console.error("Auth verification failed:", claimsError);
+      return new Response(
+        JSON.stringify({ success: false, error: "Invalid authentication" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const authenticatedUserId = claims.claims.sub;
+    if (!authenticatedUserId) {
+      return new Response(
+        JSON.stringify({ success: false, error: "User ID not found in token" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const { amount, paymentMethod, phoneNumber, email, userId }: PaymentRequest = await req.json();
+
+    // SECURITY FIX: Verify userId matches authenticated user
+    if (userId !== authenticatedUserId) {
+      return new Response(
+        JSON.stringify({ success: false, error: "User mismatch" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     console.log("Payment request received:", { amount, paymentMethod, email, userId });
 

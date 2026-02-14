@@ -172,10 +172,12 @@ const AddFunds = () => {
 
         if (uploadError) throw uploadError;
 
-        // Get public URL
-        const { data: urlData } = supabase.storage
+        // Get signed URL (bucket is private)
+        const { data: urlData, error: urlError } = await supabase.storage
           .from("payment-proofs")
-          .getPublicUrl(fileName);
+          .createSignedUrl(fileName, 86400); // 24 hour expiry
+
+        if (urlError || !urlData?.signedUrl) throw new Error("Failed to get file URL");
 
         // Create payment proof record
         const { error: proofError } = await supabase
@@ -183,7 +185,7 @@ const AddFunds = () => {
           .insert({
             user_id: user!.id,
             transaction_id: transaction.id,
-            screenshot_url: urlData.publicUrl,
+            screenshot_url: urlData.signedUrl,
             phone_number: phoneNumber,
             status: "pending",
           });
