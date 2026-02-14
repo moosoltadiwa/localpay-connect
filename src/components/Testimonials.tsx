@@ -1,32 +1,55 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight, Star, Quote } from "lucide-react";
 
+const GenderAvatar = ({ gender, name }: { gender: string; name: string }) => (
+  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+    <svg viewBox="0 0 40 40" className="w-8 h-8 text-primary" fill="currentColor">
+      {/* Head */}
+      <circle cx="20" cy="13" r="7" />
+      {/* Body */}
+      <ellipse cx="20" cy="35" rx="12" ry="9" />
+      {gender === "female" && (
+        /* Hair for feminine figure */
+        <>
+          <path d="M11 13c0-6 4-10 9-10s9 4 9 10c0 1-1 2-2 1-1-3-3-5-7-5s-6 2-7 5c-1 1-2 0-2-1z" />
+          <ellipse cx="10" cy="16" rx="2" ry="4" />
+          <ellipse cx="30" cy="16" rx="2" ry="4" />
+        </>
+      )}
+    </svg>
+  </div>
+);
+
 const testimonials = [
   {
     name: "Tendai Moyo",
     role: "Instagram Influencer",
-    image: "https://randomuser.me/api/portraits/women/91.jpg",
+    image: "",
+    gender: "female",
     content: "scrVll helped me grow my Instagram from 2K to 50K followers in just 3 months! The delivery is super fast and the support team on WhatsApp is amazing.",
     rating: 5,
   },
   {
     name: "Blessing Chikwamba",
     role: "Small Business Owner",
-    image: "https://randomuser.me/api/portraits/men/81.jpg",
+    image: "",
+    gender: "male",
     content: "As a small business owner in Harare, I needed to boost my Facebook page. PayNow payment made it so easy! My page engagement increased by 300%.",
     rating: 5,
   },
   {
     name: "Rudo Mutasa",
     role: "TikTok Creator",
-    image: "https://randomuser.me/api/portraits/women/92.jpg",
+    image: "",
+    gender: "female",
     content: "I was struggling to get views on TikTok. After using scrVll, my videos started going viral! The prices are affordable and results are real.",
     rating: 5,
   },
   {
     name: "Kudzai Ndoro",
     role: "YouTuber",
-    image: "https://randomuser.me/api/portraits/men/82.jpg",
+    image: "",
+    gender: "male",
     content: "Finally, an SMM panel that accepts EcoCash! Growing my YouTube channel has never been easier. Highly recommend to all Zimbabwean content creators.",
     rating: 5,
   },
@@ -69,11 +92,7 @@ const Testimonials = () => {
               <Quote className="absolute top-4 right-4 w-8 h-8 text-primary/20" />
               
               <div className="flex items-center gap-3 mb-4">
-                <img
-                  src={testimonial.image}
-                  alt={testimonial.name}
-                  className="w-12 h-12 rounded-full object-cover"
-                />
+                <GenderAvatar gender={testimonial.gender} name={testimonial.name} />
                 <div>
                   <h4 className="font-semibold text-foreground">{testimonial.name}</h4>
                   <p className="text-sm text-muted-foreground">{testimonial.role}</p>
@@ -99,11 +118,7 @@ const Testimonials = () => {
             <Quote className="absolute top-4 right-4 w-8 h-8 text-primary/20" />
             
             <div className="flex items-center gap-3 mb-4">
-              <img
-                src={testimonials[currentIndex].image}
-                alt={testimonials[currentIndex].name}
-                className="w-12 h-12 rounded-full object-cover"
-              />
+              <GenderAvatar gender={testimonials[currentIndex].gender} name={testimonials[currentIndex].name} />
               <div>
                 <h4 className="font-semibold text-foreground">{testimonials[currentIndex].name}</h4>
                 <p className="text-sm text-muted-foreground">{testimonials[currentIndex].role}</p>
