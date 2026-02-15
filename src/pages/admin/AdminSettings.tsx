@@ -19,6 +19,7 @@ const AdminSettings = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [apiKeyChanged, setApiKeyChanged] = useState(false);
   const [settings, setSettings] = useState<SettingsData>({
     smm_api_url: "",
     smm_api_key: "",
@@ -45,7 +46,12 @@ const AdminSettings = () => {
 
       data?.forEach((item) => {
         if (item.setting_key in settingsMap) {
-          settingsMap[item.setting_key as keyof SettingsData] = item.setting_value || "";
+          // Never load the actual API key to the client - only show if it's set
+          if (item.setting_key === "smm_api_key") {
+            settingsMap.smm_api_key = item.setting_value ? "••••••••" : "";
+          } else {
+            settingsMap[item.setting_key as keyof SettingsData] = item.setting_value || "";
+          }
         }
       });
 
@@ -65,10 +71,16 @@ const AdminSettings = () => {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const updates = Object.entries(settings).map(([key, value]) => ({
-        setting_key: key,
-        setting_value: value,
-      }));
+      const updates = Object.entries(settings)
+        .filter(([key]) => {
+          // Only send api_key if it was actually changed by the admin
+          if (key === "smm_api_key" && !apiKeyChanged) return false;
+          return true;
+        })
+        .map(([key, value]) => ({
+          setting_key: key,
+          setting_value: value,
+        }));
 
       for (const update of updates) {
         const { error } = await supabase
@@ -77,6 +89,12 @@ const AdminSettings = () => {
           .eq("setting_key", update.setting_key);
 
         if (error) throw error;
+      }
+
+      setApiKeyChanged(false);
+      // Re-mask the API key after save
+      if (apiKeyChanged && settings.smm_api_key) {
+        setSettings(prev => ({ ...prev, smm_api_key: "••••••••" }));
       }
 
       toast({
@@ -96,6 +114,9 @@ const AdminSettings = () => {
   };
 
   const handleChange = (key: keyof SettingsData, value: string) => {
+    if (key === "smm_api_key") {
+      setApiKeyChanged(true);
+    }
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -150,10 +171,16 @@ const AdminSettings = () => {
               <div className="relative">
                 <Input
                   id="smm_api_key"
-                  type={showApiKey ? "text" : "password"}
-                  placeholder="Enter your API key"
+                  type={showApiKey && apiKeyChanged ? "text" : "password"}
+                  placeholder="Enter new API key"
                   value={settings.smm_api_key}
                   onChange={(e) => handleChange("smm_api_key", e.target.value)}
+                  onFocus={() => {
+                    if (!apiKeyChanged) {
+                      setSettings(prev => ({ ...prev, smm_api_key: "" }));
+                      setApiKeyChanged(true);
+                    }
+                  }}
                   className="bg-background pr-10"
                 />
                 <button
