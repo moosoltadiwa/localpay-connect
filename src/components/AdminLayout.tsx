@@ -209,7 +209,12 @@ const AdminLayout = ({ children, title }: AdminLayoutProps) => {
         </header>
 
         {/* Page Content */}
-        {children}
+        <div className="flex-1">{children}</div>
+
+        {/* Copyright */}
+        <footer className="border-t border-border px-4 py-3 text-center text-xs text-muted-foreground">
+          © {new Date().getFullYear()} scrVll. All rights reserved.
+        </footer>
       </main>
     </div>
   );
