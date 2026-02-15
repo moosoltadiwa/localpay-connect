@@ -37,8 +37,8 @@ const paymentMethods = [
 
 const presetAmounts = [5, 10, 20, 50, 100, 200];
 
-const ECOCASH_NUMBER = "0771234567"; // Replace with actual EcoCash merchant number
-const ECOCASH_NAME = "ZimBoost SMM"; // Replace with actual name
+const ECOCASH_NUMBER = "0776885016";
+const ECOCASH_NAME = "Tadiwanashe Musorowenzo";
 
 const AddFunds = () => {
   const { toast } = useToast();
