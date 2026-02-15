@@ -1,10 +1,12 @@
-import { useState, useRef } from "react";
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 
 const LoginForm = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -12,12 +14,35 @@ const LoginForm = () => {
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
+  const { signIn } = useAuth();
+  const { toast } = useToast();
+  const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email || !password) {
+      toast({
+        title: "Missing fields",
+        description: "Please enter your email and password.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsAnimating(true);
-    setTimeout(() => setIsAnimating(false), 600);
-    console.log({ email, password, rememberMe });
+    const { error } = await signIn(email, password);
+    
+    if (error) {
+      setIsAnimating(false);
+      toast({
+        title: "Sign in failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      // Navigate to ordering/services page on success
+      navigate("/dashboard/services");
+    }
   };
 
   return (
@@ -100,6 +125,7 @@ const LoginForm = () => {
           <Button
             type="submit"
             variant="hero"
+            disabled={isAnimating}
             className={`w-full h-12 transition-transform duration-300 ${isAnimating ? "scale-95 opacity-80" : "scale-100 opacity-100"}`}
           >
             {isAnimating ? (
