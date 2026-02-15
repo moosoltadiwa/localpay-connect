@@ -40,8 +40,8 @@ const LoginForm = () => {
         variant: "destructive",
       });
     } else {
-      // Navigate to ordering/services page on success
-      navigate("/dashboard/services");
+      // Navigate to New Order page on success
+      navigate("/dashboard");
     }
   };
 
