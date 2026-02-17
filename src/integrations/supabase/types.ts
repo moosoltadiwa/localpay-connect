@@ -94,6 +94,39 @@ export type Database = {
           },
         ]
       }
+      password_reset_requests: {
+        Row: {
+          admin_notes: string | null
+          created_at: string
+          id: string
+          reset_link: string | null
+          status: string
+          updated_at: string
+          user_email: string
+          user_id: string | null
+        }
+        Insert: {
+          admin_notes?: string | null
+          created_at?: string
+          id?: string
+          reset_link?: string | null
+          status?: string
+          updated_at?: string
+          user_email: string
+          user_id?: string | null
+        }
+        Update: {
+          admin_notes?: string | null
+          created_at?: string
+          id?: string
+          reset_link?: string | null
+          status?: string
+          updated_at?: string
+          user_email?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       payment_proofs: {
         Row: {
           admin_notes: string | null
