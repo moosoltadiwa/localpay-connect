@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import { AuthProvider } from "@/hooks/useAuth";
 import Index from "./pages/Index";
+import ForgotPassword from "./pages/ForgotPassword";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import AddFunds from "./pages/AddFunds";
@@ -35,6 +36,7 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/dashboard/add-funds" element={<AddFunds />} />
               <Route path="/dashboard/orders" element={<OrderHistory />} />
