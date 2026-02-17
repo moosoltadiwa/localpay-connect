@@ -12,6 +12,7 @@ import {
   BarChart3,
   Settings,
   Receipt,
+  KeyRound,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdmin } from "@/hooks/useAdmin";
@@ -69,6 +70,7 @@ const AdminLayout = ({ children, title }: AdminLayoutProps) => {
     { path: "/admin/customers", icon: Users, label: "Customers", badge: 0 },
     { path: "/admin/transactions", icon: CreditCard, label: "Transactions", badge: pendingDepositsCount || 0 },
     { path: "/admin/payment-proofs", icon: Receipt, label: "Payment Proofs", badge: pendingProofsCount || 0 },
+    { path: "/admin/password-resets", icon: KeyRound, label: "Password Resets", badge: 0 },
     { path: "/admin/settings", icon: Settings, label: "Settings", badge: 0 },
   ];
 

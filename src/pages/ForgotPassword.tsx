@@ -4,8 +4,7 @@ import { Helmet } from "react-helmet-async";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Mail, Loader2, CheckCircle } from "lucide-react";
-import { Zap } from "lucide-react";
+import { ArrowLeft, Mail, Loader2, CheckCircle, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -13,7 +12,7 @@ const ForgotPassword = () => {
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,17 +27,30 @@ const ForgotPassword = () => {
 
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
+      // Look up user profile to get user_id
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("email", email)
+        .maybeSingle();
+
+      // Insert reset request (even if user not found, don't reveal that)
+      const { error } = await supabase
+        .from("password_reset_requests")
+        .insert({
+          user_email: email,
+          user_id: profile?.id || null,
+          status: "pending",
+        });
 
       if (error) throw error;
 
-      setEmailSent(true);
+      setSubmitted(true);
     } catch (error: any) {
+      console.error("Reset request error:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to send reset email. Please try again.",
+        description: "Failed to submit reset request. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -76,26 +88,20 @@ const ForgotPassword = () => {
               <span className="font-display font-bold text-xl text-foreground">scrVll</span>
             </div>
 
-            {emailSent ? (
+            {submitted ? (
               <div className="text-center space-y-4">
                 <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
                   <CheckCircle className="w-8 h-8 text-primary" />
                 </div>
                 <h1 className="font-display text-2xl font-bold text-foreground">
-                  Check Your Email
+                  Request Submitted
                 </h1>
                 <p className="text-muted-foreground">
-                  We've sent a password reset link to{" "}
-                  <strong className="text-foreground">{email}</strong>. Please check your inbox and follow the instructions.
+                  Your password reset request for{" "}
+                  <strong className="text-foreground">{email}</strong> has been submitted. An admin will send you a reset link shortly.
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Didn't receive it? Check your spam folder or{" "}
-                  <button
-                    onClick={() => setEmailSent(false)}
-                    className="text-primary hover:text-primary/80 font-semibold transition-colors"
-                  >
-                    try again
-                  </button>
+                  Please check your email or contact support if you don't hear back soon.
                 </p>
               </div>
             ) : (
@@ -105,7 +111,7 @@ const ForgotPassword = () => {
                     Forgot Password?
                   </h1>
                   <p className="text-muted-foreground mt-1">
-                    Enter your email and we'll send you a reset link
+                    Enter your email and an admin will send you a reset link
                   </p>
                 </div>
 
@@ -138,7 +144,7 @@ const ForgotPassword = () => {
                     {isSubmitting ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Sending...
+                        Submitting...
                       </>
                     ) : (
                       "Send Reset Link"
