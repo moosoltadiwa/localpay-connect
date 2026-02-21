@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import { AuthProvider } from "@/hooks/useAuth";
+import { ThemeProvider } from "@/hooks/useTheme";
 import Index from "./pages/Index";
 import ForgotPassword from "./pages/ForgotPassword";
 import Auth from "./pages/Auth";
@@ -31,6 +32,7 @@ const App = () => (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
+          <ThemeProvider>
           <Toaster />
           <Sonner />
           <BrowserRouter>
@@ -57,6 +59,7 @@ const App = () => (
             </Routes>
             <WhatsAppButton />
           </BrowserRouter>
+          </ThemeProvider>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>

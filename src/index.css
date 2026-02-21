@@ -262,15 +262,15 @@
 
 @layer components {
   .gradient-hero {
-    background: linear-gradient(180deg, hsl(199 89% 55%) 0%, hsl(199 89% 48%) 50%, hsl(172 66% 50%) 100%);
+    background: var(--gradient-hero);
   }
 
   .gradient-primary {
-    background: linear-gradient(135deg, hsl(199 89% 48%) 0%, hsl(172 66% 50%) 100%);
+    background: var(--gradient-primary);
   }
 
   .gradient-text {
-    background: linear-gradient(135deg, hsl(199 89% 48%) 0%, hsl(172 66% 50%) 100%);
+    background: var(--gradient-primary);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
