@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, Link, Key, Percent, Save, Loader2, Eye, EyeOff } from "lucide-react";
+import { Settings, Link, Key, Percent, Save, Loader2, Eye, EyeOff, Palette, Check } from "lucide-react";
+import { useTheme, THEMES, ThemeName } from "@/hooks/useTheme";
 
 interface SettingsData {
   smm_api_url: string;
@@ -16,8 +17,10 @@ interface SettingsData {
 
 const AdminSettings = () => {
   const { toast } = useToast();
+  const { theme: currentTheme, setTheme } = useTheme();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingTheme, setSavingTheme] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiKeyChanged, setApiKeyChanged] = useState(false);
   const [settings, setSettings] = useState<SettingsData>({
@@ -246,6 +249,61 @@ const AdminSettings = () => {
                 </div>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Theme Settings */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Palette className="w-5 h-5" />
+              Site Theme
+            </CardTitle>
+            <CardDescription>
+              Choose a color theme for the entire website
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {THEMES.map((t) => {
+                const isActive = currentTheme === t.value;
+                return (
+                  <button
+                    key={t.value}
+                    disabled={savingTheme}
+                    onClick={async () => {
+                      setSavingTheme(true);
+                      try {
+                        const { error } = await supabase
+                          .from("admin_settings")
+                          .update({ setting_value: t.value })
+                          .eq("setting_key", "site_theme");
+                        if (error) throw error;
+                        setTheme(t.value);
+                        toast({ title: "Theme updated", description: `Switched to ${t.label} theme.` });
+                      } catch (err: any) {
+                        toast({ title: "Error", description: err.message, variant: "destructive" });
+                      } finally {
+                        setSavingTheme(false);
+                      }
+                    }}
+                    className={`relative p-4 rounded-lg border-2 text-left transition-all ${
+                      isActive
+                        ? "border-primary bg-primary/5 shadow-md"
+                        : "border-border hover:border-primary/40 hover:bg-secondary/50"
+                    }`}
+                  >
+                    {isActive && (
+                      <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                        <Check className="w-3 h-3 text-primary-foreground" />
+                      </div>
+                    )}
+                    <p className="font-medium text-foreground">{t.label}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{t.description}</p>
+                  </button>
+                );
+              })}
+            </div>
           </CardContent>
         </Card>
 
