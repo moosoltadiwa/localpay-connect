@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Loader2, AlertCircle } from "lucide-react";
+import { Search, Loader2, AlertCircle, Instagram, Youtube, Facebook, Twitter, Music } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,6 +34,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { user, profile, loading: authLoading, refreshProfile } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedServiceId, setSelectedServiceId] = useState("");
   const [link, setLink] = useState("");
@@ -57,10 +58,26 @@ const Dashboard = () => {
     },
   });
 
+  const platforms = [
+    { name: "Instagram", icon: Instagram, keywords: ["instagram", "ig"] },
+    { name: "TikTok", icon: Music, keywords: ["tiktok", "tik tok"] },
+    { name: "YouTube", icon: Youtube, keywords: ["youtube", "yt"] },
+    { name: "Facebook", icon: Facebook, keywords: ["facebook", "fb"] },
+    { name: "Twitter / X", icon: Twitter, keywords: ["twitter", "x ", " x", "tweet"] },
+  ];
+
   // Get unique categories
   const categories = services
     ? [...new Set(services.map((s) => s.category))]
     : [];
+
+  // Filter categories by selected platform
+  const platformFilteredCategories = selectedPlatform
+    ? categories.filter((cat) => {
+        const platform = platforms.find((p) => p.name === selectedPlatform);
+        return platform?.keywords.some((kw) => cat.toLowerCase().includes(kw));
+      })
+    : categories;
 
   // Get services for selected category
   const categoryServices = services?.filter(
@@ -91,6 +108,14 @@ const Dashboard = () => {
     }
   }, [quantity, selectedService]);
 
+  // Reset category when platform changes
+  useEffect(() => {
+    setSelectedCategory("");
+    setSelectedServiceId("");
+    setQuantity("");
+    setCharge(0);
+  }, [selectedPlatform]);
+
   // Reset service when category changes
   useEffect(() => {
     setSelectedServiceId("");
@@ -99,7 +124,7 @@ const Dashboard = () => {
   }, [selectedCategory]);
 
   // Filter categories by search
-  const filteredCategories = categories.filter((cat) => {
+  const filteredCategories = platformFilteredCategories.filter((cat) => {
     const catServices = services?.filter((s) => s.category === cat) || [];
     return (
       cat.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -272,6 +297,35 @@ const Dashboard = () => {
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-10 h-12 bg-background border-border"
                   />
+                </div>
+              </div>
+
+              {/* Platform Filter */}
+              <div className="space-y-2">
+                <Label className="text-primary font-semibold">Platform</Label>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant={selectedPlatform === null ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setSelectedPlatform(null)}
+                    className="h-10"
+                  >
+                    All
+                  </Button>
+                  {platforms.map((platform) => (
+                    <Button
+                      key={platform.name}
+                      type="button"
+                      variant={selectedPlatform === platform.name ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setSelectedPlatform(platform.name)}
+                      className="h-10 gap-2"
+                    >
+                      <platform.icon className="w-4 h-4" />
+                      {platform.name}
+                    </Button>
+                  ))}
                 </div>
               </div>
 
