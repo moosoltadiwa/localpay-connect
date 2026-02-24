@@ -11,7 +11,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Loader2, AlertCircle, Instagram, Youtube, Facebook, Twitter, Music } from "lucide-react";
+import { Search, Loader2, AlertCircle, Instagram, Youtube, Facebook } from "lucide-react";
+
+const TikTokIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.27 6.27 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.34-6.34V8.75a8.18 8.18 0 0 0 4.76 1.52V6.84a4.84 4.84 0 0 1-1-.15z" />
+  </svg>
+);
+
+const XIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+  </svg>
+);
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -60,10 +72,10 @@ const Dashboard = () => {
 
   const platforms = [
     { name: "Instagram", icon: Instagram, keywords: ["instagram", "ig"] },
-    { name: "TikTok", icon: Music, keywords: ["tiktok", "tik tok"] },
+    { name: "TikTok", icon: TikTokIcon, keywords: ["tiktok", "tik tok"] },
     { name: "YouTube", icon: Youtube, keywords: ["youtube", "yt"] },
     { name: "Facebook", icon: Facebook, keywords: ["facebook", "fb"] },
-    { name: "Twitter / X", icon: Twitter, keywords: ["twitter", "x ", " x", "tweet"] },
+    { name: "Twitter / X", icon: XIcon, keywords: ["twitter", "x ", " x", "tweet"] },
   ];
 
   // Get unique categories
