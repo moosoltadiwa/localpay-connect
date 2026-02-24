@@ -82,7 +82,7 @@ const Auth = () => {
         } else {
           toast({
             title: "Account created!",
-            description: "Welcome to ZimBoost. Redirecting to dashboard...",
+            description: "Welcome to scrVll. Redirecting to dashboard...",
           });
         }
       } else {
@@ -97,7 +97,7 @@ const Auth = () => {
         } else {
           toast({
             title: "Login successful!",
-            description: "Welcome back to ZimBoost.",
+            description: "Welcome back to scrVll.",
           });
         }
       }
@@ -123,12 +123,12 @@ const Auth = () => {
   return (
     <>
       <Helmet>
-        <title>{isSignup ? "Sign Up" : "Sign In"} - ZimBoost SMM Panel</title>
+        <title>{isSignup ? "Sign Up" : "Sign In"} - scrVll SMM Panel</title>
         <meta
           name="description"
           content={isSignup 
-            ? "Create your free ZimBoost account and start growing your social media today."
-            : "Sign in to your ZimBoost account to manage your orders and grow your social media."
+            ? "Create your free scrVll account and start growing your social media today."
+            : "Sign in to your scrVll account to manage your orders and grow your social media."
           }
         />
       </Helmet>
@@ -156,7 +156,7 @@ const Auth = () => {
               <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center">
                 <Zap className="w-5 h-5 text-primary-foreground" />
               </div>
-              <span className="font-display font-bold text-xl text-foreground">ZimBoost</span>
+              <span className="font-display font-bold text-xl text-foreground">scrVll</span>
             </div>
 
             {/* Header */}
