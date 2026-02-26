@@ -388,7 +388,7 @@ const Dashboard = () => {
                   </SelectContent>
                 </Select>
                 {selectedService?.description && (
-                  <p className="text-sm text-muted-foreground">{selectedService.description}</p>
+                  <p className="text-sm text-muted-foreground mt-1 p-2 bg-secondary/50 rounded-md max-h-24 overflow-y-auto break-words whitespace-pre-wrap">{selectedService.description}</p>
                 )}
               </div>
 
