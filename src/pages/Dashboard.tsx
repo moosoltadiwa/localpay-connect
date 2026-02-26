@@ -128,12 +128,17 @@ const Dashboard = () => {
     setCharge(0);
   }, [selectedPlatform]);
 
-  // Reset service when category changes
+  // Auto-select first service when category changes
   useEffect(() => {
-    setSelectedServiceId("");
     setQuantity("");
     setCharge(0);
-  }, [selectedCategory]);
+    if (selectedCategory && services) {
+      const firstService = services.find((s) => s.category === selectedCategory);
+      setSelectedServiceId(firstService ? firstService.id : "");
+    } else {
+      setSelectedServiceId("");
+    }
+  }, [selectedCategory, services]);
 
   // Filter categories by search
   const filteredCategories = platformFilteredCategories.filter((cat) => {
